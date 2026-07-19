@@ -84,6 +84,12 @@
 html, body {
   background-color: var(--color-black);
   color: var(--color-white);
+  overflow: hidden !important;
+  height: 100% !important;
+  max-height: 100dvh !important;
+  width: 100% !important;
+  position: fixed !important;
+  inset: 0 !important;
 }
 
 /* Clean Custom Scrollbar styling */
