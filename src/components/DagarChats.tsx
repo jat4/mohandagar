@@ -45,6 +45,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
   const [isSearching, setIsSearching] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
 
   const formatMessageTimeIST = (createdAt: any) => {
     if (!createdAt) return "";
@@ -139,9 +140,30 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
   }, []);
 
   // Scroll to bottom helper
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: "smooth"
+      });
+    }
+  };
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    scrollToBottom();
+    // Re-verify scroll position shortly after DOM updates (handling loaded pictures and layout settlement)
+    const t1 = setTimeout(scrollToBottom, 60);
+    const t2 = setTimeout(scrollToBottom, 180);
+    const t3 = setTimeout(scrollToBottom, 400);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [messages, activeChatId]);
 
   // Handle setting up a new direct chat
   const setupDirectChat = async (targetUserId: string) => {
@@ -457,7 +479,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
             </div>
 
             {/* Scrollable bubble messages list */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4">
               {messages.map((msg, index) => {
                 const isMine = msg.senderId === myProfile?.uid;
                 const isLastMsg = index === messages.length - 1;
