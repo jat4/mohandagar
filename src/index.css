@@ -1,1 +1,103 @@
 @import "tailwindcss";
+
+@media (prefers-color-scheme: light) {
+  :root {
+    /* Backgrounds: Convert dark values to light/clean slate colors */
+    --color-black: #ffffff;
+    --color-neutral-950: #f8fafc; /* slate-50 */
+    --color-neutral-900: #f1f5f9; /* slate-100 */
+    --color-neutral-850: #e2e8f0; /* slate-200 */
+    --color-neutral-800: #e2e8f0; /* slate-200 */
+    
+    /* Borders: Convert dark borders to clean, subtle light borders */
+    --color-gray-800: #e2e8f0; /* slate-200 */
+    --color-gray-900: #f1f5f9; /* slate-100 */
+    --color-gray-950: #f8fafc; /* slate-50 */
+    --color-neutral-800: #e2e8f0; /* slate-200 */
+    --color-neutral-900: #f1f5f9; /* slate-100 */
+    
+    /* Texts: Map white and bright-gray to dark slate colors */
+    --color-white: #0f172a; /* slate-900 */
+    --color-neutral-100: #1e293b; /* slate-800 */
+    --color-neutral-200: #334155; /* slate-700 */
+    --color-neutral-300: #475569; /* slate-600 */
+    --color-neutral-400: #64748b; /* slate-500 */
+    
+    --color-gray-100: #1e293b; /* slate-800 */
+    --color-gray-200: #334155; /* slate-700 */
+    --color-gray-300: #475569; /* slate-600 */
+    --color-gray-400: #64748b; /* slate-500 */
+    --color-gray-500: #94a3b8; /* slate-400 */
+    --color-gray-600: #475569; /* slate-600 */
+    --color-gray-750: #e2e8f0; /* slate-200 */
+  }
+
+  /* Force light theme on hardcoded hex colors from original dark visual styles */
+  .bg-\[\#090a0f\] {
+    background-color: #ffffff !important;
+  }
+  .bg-\[\#0d0f17\] {
+    background-color: #ffffff !important;
+  }
+  .bg-\[\#131622\] {
+    background-color: #f1f5f9 !important;
+  }
+  .bg-\[\#1b1e2e\] {
+    background-color: #f8fafc !important;
+  }
+  .bg-\[\#141624\] {
+    background-color: #f8fafc !important;
+  }
+
+  /* Handle specific custom borders on hardcoded hex classes */
+  .border-gray-800 {
+    border-color: #e2e8f0 !important;
+  }
+  .border-gray-900 {
+    border-color: #f1f5f9 !important;
+  }
+  .border-gray-950 {
+    border-color: #f8fafc !important;
+  }
+}
+
+/* Ensure the Story Lightbox always stays dark theater mode */
+.fixed.z-50.bg-black {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+.fixed.z-50.bg-black .text-white,
+.fixed.z-50.bg-black .text-gray-400 {
+  color: #ffffff !important;
+}
+.fixed.z-50.bg-black .text-white\/40 {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+.fixed.z-50.bg-black .bg-neutral-950 {
+  background-color: #0a0a0a !important;
+}
+.fixed.z-50.bg-black .bg-black\/60 {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Base resets & styling */
+html, body {
+  background-color: var(--color-black);
+  color: var(--color-white);
+}
+
+/* Clean Custom Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-800);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
+}
