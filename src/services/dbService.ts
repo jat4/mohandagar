@@ -518,11 +518,20 @@ export async function addComment(postId: string, comment: Omit<Comment, "id" | "
   try {
     const commentsColRef = collection(db, "posts", postId, "comments");
     const commentDocRef = doc(commentsColRef);
-    const commentPayload = {
+    const commentPayload: any = {
       ...comment,
+      ownerPhotoURL: comment.ownerPhotoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${comment.ownerUsername || "default"}`,
       id: commentDocRef.id,
       createdAt: serverTimestamp(),
     };
+    
+    // Clean undefined fields to avoid Firestore error
+    Object.keys(commentPayload).forEach((key) => {
+      if (commentPayload[key] === undefined) {
+        delete commentPayload[key];
+      }
+    });
+
     await setDoc(commentDocRef, commentPayload);
 
     // Update comment counter on parent post
@@ -613,7 +622,11 @@ export function subscribeToComments(postId: string, callback: (comments: Comment
     (snapshot) => {
       const comments: Comment[] = [];
       snapshot.forEach((doc) => {
-        comments.push(doc.data() as Comment);
+        const data = doc.data() as Comment;
+        comments.push({
+          ...data,
+          id: doc.id
+        });
       });
       callback(comments);
     },
@@ -822,6 +835,27 @@ export async function sendMessage(chatId: string, senderId: string, receiverId: 
 const globalProfileCache: Record<string, UserProfile> = {};
 
 /**
+ * Determines whether a chat should be shown to a user based on its deletedAt status.
+ */
+export function shouldShowChatForUser(chat: Chat, userId: string): boolean {
+  if (!chat.deletedAt || !chat.deletedAt[userId]) return true;
+  const deletedTime = new Date(chat.deletedAt[userId]).getTime();
+  
+  let lastMsgTime = 0;
+  if (chat.lastMessageTime) {
+    if (chat.lastMessageTime.seconds) {
+      lastMsgTime = chat.lastMessageTime.seconds * 1000;
+    } else if (chat.lastMessageTime instanceof Date) {
+      lastMsgTime = chat.lastMessageTime.getTime();
+    } else {
+      lastMsgTime = new Date(chat.lastMessageTime).getTime();
+    }
+  }
+  
+  return lastMsgTime > deletedTime;
+}
+
+/**
  * Subscribes to chat threads for a user.
  */
 export function subscribeToUserChats(uid: string, callback: (chats: Chat[]) => void) {
@@ -831,7 +865,7 @@ export function subscribeToUserChats(uid: string, callback: (chats: Chat[]) => v
       const users = getLocalUsers();
       
       const filtered = chats
-        .filter(c => c.participants.includes(uid))
+        .filter(c => c.participants.includes(uid) && shouldShowChatForUser(c, uid))
         .map(chatData => {
           const otherUserId = chatData.participants.find(p => p !== uid);
           const copy = { ...chatData };
@@ -867,6 +901,11 @@ export function subscribeToUserChats(uid: string, callback: (chats: Chat[]) => v
       for (const d of snapshot.docs) {
         const chatData = d.data() as Chat;
         chatData.id = d.id;
+
+        if (!shouldShowChatForUser(chatData, uid)) {
+          continue;
+        }
+
         const otherUserId = chatData.participants.find((p) => p !== uid);
 
         if (otherUserId) {
@@ -966,7 +1005,9 @@ export function subscribeToMessages(chatId: string, callback: (messages: Message
     (snapshot) => {
       const messages: Message[] = [];
       snapshot.forEach((doc) => {
-        messages.push(doc.data() as Message);
+        const data = doc.data() as Message;
+        data.id = doc.id; // Guarantee the correct document ID is present
+        messages.push(data);
       });
       callback(messages);
     },
@@ -1230,6 +1271,11 @@ export function subscribeToFollowing(userId: string, callback: (followingIds: st
  * Deletes a message from a chat thread (Instagram-style unsend/delete).
  */
 export async function deleteMessage(chatId: string, messageId: string): Promise<void> {
+  if (!chatId || !messageId) {
+    console.error("deleteMessage called with invalid params:", { chatId, messageId });
+    return;
+  }
+
   if (isLocalDemo()) {
     const messages = getLocalMessages();
     const filtered = messages.filter((m) => m.id !== messageId);
@@ -1285,18 +1331,19 @@ export async function deleteMessage(chatId: string, messageId: string): Promise<
 }
 
 /**
- * Deletes an entire chat conversation/thread.
+ * Deletes an entire chat conversation/thread for a specific user (one-sided deletion).
  */
-export async function deleteChat(chatId: string): Promise<void> {
+export async function deleteChat(chatId: string, userId: string): Promise<void> {
   if (isLocalDemo()) {
     const chats = getLocalChats();
-    const filteredChats = chats.filter((c) => c.id !== chatId);
-    saveLocalChats(filteredChats);
-
-    const messages = getLocalMessages();
-    const filteredMessages = messages.filter((m) => m.chatId !== chatId);
-    saveLocalMessages(filteredMessages);
-
+    const chatIdx = chats.findIndex((c) => c.id === chatId);
+    if (chatIdx >= 0) {
+      if (!chats[chatIdx].deletedAt) {
+        chats[chatIdx].deletedAt = {};
+      }
+      chats[chatIdx].deletedAt![userId] = new Date().toISOString();
+      saveLocalChats(chats);
+    }
     window.dispatchEvent(new Event("dagar_chats_db_update"));
     return;
   }
@@ -1304,10 +1351,12 @@ export async function deleteChat(chatId: string): Promise<void> {
   const path = `chats/${chatId}`;
   try {
     const chatRef = doc(db, "chats", chatId);
-    await deleteDoc(chatRef);
+    await updateDoc(chatRef, {
+      [`deletedAt.${userId}`]: new Date().toISOString()
+    });
     window.dispatchEvent(new Event("dagar_chats_db_update"));
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+    handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
 
