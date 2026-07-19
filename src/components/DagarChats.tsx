@@ -23,17 +23,21 @@ interface DagarChatsProps {
 export default function DagarChats({ initialTargetUserId, onUserProfileClick }: DagarChatsProps) {
   const { profile: myProfile } = useAuth();
   const [chats, setChats] = useState<Chat[]>([]);
-  const [activeChat, setActiveChat] = useState<Chat | null>(null);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [tempActiveChat, setTempActiveChat] = useState<Chat | null>(null);
+
+  const activeChat = (activeChatId ? chats.find((c) => c.id === activeChatId) : null) || tempActiveChat;
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState("");
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
 
-  // Mark chat as seen when active chat or message list changes
+  // Mark chat as seen when active chat ID or message length changes (avoids infinite loops)
   useEffect(() => {
     if (activeChat && myProfile) {
       markChatAsSeen(activeChat.id, myProfile.uid);
     }
-  }, [activeChat, messages, myProfile]);
+  }, [activeChat?.id, messages.length, myProfile?.uid]);
 
   // Search user state to start a chat
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,7 +86,8 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
       if (initialTargetUserId) {
         const existing = loadedChats.find((c) => c.participants.includes(initialTargetUserId));
         if (existing) {
-          setActiveChat(existing);
+          setActiveChatId(existing.id);
+          setTempActiveChat(null);
         } else {
           // Trigger getOrCreateChat manually
           setupDirectChat(initialTargetUserId);
@@ -95,16 +100,27 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
 
   // 2. Subscribe to messages inside the active chat
   useEffect(() => {
-    if (!activeChat) {
+    if (!activeChatId) {
       localStorage.removeItem("dagar_current_active_chat_id");
       setMessages([]);
       return;
     }
-    localStorage.setItem("dagar_current_active_chat_id", activeChat.id);
-    const unsubscribe = subscribeToMessages(activeChat.id, (loadedMessages) => {
-      setMessages(loadedMessages);
+    localStorage.setItem("dagar_current_active_chat_id", activeChatId);
+    const unsubscribe = subscribeToMessages(activeChatId, (loadedMessages) => {
+      let finalMessages = loadedMessages;
+      if (myProfile && activeChat?.deletedAt && activeChat.deletedAt[myProfile.uid]) {
+        const deletedTime = new Date(activeChat.deletedAt[myProfile.uid]).getTime();
+        finalMessages = loadedMessages.filter((m) => {
+          if (!m.createdAt) return true; // Keep newly sent unsaved messages
+          const msgTime = m.createdAt.seconds
+            ? m.createdAt.seconds * 1000
+            : new Date(m.createdAt).getTime();
+          return msgTime > deletedTime;
+        });
+      }
+      setMessages(finalMessages);
       // Mark as read in local storage
-      localStorage.setItem(`dagar_chat_last_seen_${activeChat.id}`, new Date().toISOString());
+      localStorage.setItem(`dagar_chat_last_seen_${activeChatId}`, new Date().toISOString());
       window.dispatchEvent(new Event("dagar_chats_read_update"));
     });
     return () => {
@@ -112,7 +128,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
       localStorage.removeItem("dagar_current_active_chat_id");
       window.dispatchEvent(new Event("dagar_chats_read_update"));
     };
-  }, [activeChat]);
+  }, [activeChatId, activeChat?.deletedAt?.[myProfile?.uid || ""], myProfile]);
 
   // General unmount cleanup for active chat tracking
   useEffect(() => {
@@ -143,7 +159,8 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
       if (targetUser) {
         targetChat.otherUser = targetUser;
       }
-      setActiveChat(targetChat as Chat);
+      setActiveChatId(chatId);
+      setTempActiveChat(targetChat as Chat);
       setSearchQuery("");
       setSearchResults([]);
     } catch (err) {
@@ -169,7 +186,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, myProfile]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent | React.KeyboardEvent) => {
     e.preventDefault();
     if (!myProfile || !activeChat || !messageInput.trim()) return;
 
@@ -183,6 +200,13 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
       await sendMessage(activeChat.id, myProfile.uid, recipientId, txt);
     } catch (err) {
       console.error("Failed to send message", err);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage(e);
     }
   };
 
@@ -306,7 +330,8 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
                     <div
                       key={chat.id}
                       onClick={() => {
-                        setActiveChat(chat);
+                        setActiveChatId(chat.id);
+                        setTempActiveChat(null);
                         setSearchQuery("");
                         // Mark as read in local storage
                         localStorage.setItem(`dagar_chat_last_seen_${chat.id}`, new Date().toISOString());
@@ -341,9 +366,12 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 try {
-                                  await deleteChat(chat.id);
-                                  if (activeChat?.id === chat.id) {
-                                    setActiveChat(null);
+                                  if (myProfile) {
+                                    await deleteChat(chat.id, myProfile.uid);
+                                  }
+                                  if (activeChatId === chat.id) {
+                                    setActiveChatId(null);
+                                    setTempActiveChat(null);
                                   }
                                   setDeletingChatId(null);
                                 } catch (err) {
@@ -398,7 +426,10 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
             {/* Conversation recipient header */}
             <div className="px-6 py-4 border-b border-gray-900 bg-black flex items-center gap-3 shrink-0">
               <button
-                onClick={() => setActiveChat(null)}
+                onClick={() => {
+                  setActiveChatId(null);
+                  setTempActiveChat(null);
+                }}
                 className="md:hidden p-1.5 hover:bg-white/5 rounded-full text-gray-400 hover:text-white mr-1.5 transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -427,22 +458,35 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
 
             {/* Scrollable bubble messages list */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="bg-neutral-950 border border-gray-800 p-4 rounded-lg flex items-start gap-3 max-w-md mx-auto mb-6 text-left">
-                <ShieldAlert className="w-5 h-5 shrink-0 text-white mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-white">Encrypted Direct Chat</p>
-                  <p className="text-[10px] text-gray-400 leading-relaxed">
-                    Messages are delivered in real-time. Keep chat spaces courteous and premium.
-                  </p>
-                </div>
-              </div>
-
               {messages.map((msg, index) => {
                 const isMine = msg.senderId === myProfile?.uid;
                 const isLastMsg = index === messages.length - 1;
                 return (
-                  <div key={msg.id} className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
-                    <div className={`flex items-center gap-2 group ${isMine ? "justify-end" : "justify-start"}`}>
+                  <div key={msg.id} className={`flex flex-col ${isMine ? "items-end" : "items-start"} mb-2`}>
+                    <div className={`flex items-end gap-2.5 max-w-[85%] group ${isMine ? "flex-row-reverse" : "flex-row"}`}>
+                      {/* Recipient Profile Photo next to message bubble */}
+                      {!isMine && (
+                        <img
+                          src={activeChat.otherUser?.photoURL || "https://api.dicebear.com/7.x/adventurer/svg?seed=MohanDagar"}
+                          alt="User"
+                          className="w-7 h-7 rounded-full object-cover shrink-0 border border-neutral-800 self-end mb-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => activeChat.otherUser?.uid && onUserProfileClick(activeChat.otherUser.uid)}
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      
+                      {/* Bubble container */}
+                      <div
+                        className={`relative rounded-2xl px-4 py-2.5 text-sm leading-relaxed text-left shadow-md break-words whitespace-pre-wrap ${
+                          isMine
+                            ? "bg-white text-black font-normal rounded-br-sm"
+                            : "bg-neutral-900 text-neutral-100 border border-neutral-800 rounded-bl-sm"
+                        }`}
+                      >
+                        {msg.text}
+                      </div>
+
+                      {/* Delete/Unsend action button */}
                       {isMine && (
                         <button
                           onClick={async () => {
@@ -452,32 +496,24 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
                               }
                             }
                           }}
-                          className="opacity-0 md:group-hover:opacity-100 max-md:opacity-30 p-1.5 hover:bg-neutral-900 rounded-full text-gray-500 hover:text-red-500 transition-all cursor-pointer"
+                          className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1.5 hover:bg-neutral-900 rounded-full text-neutral-500 hover:text-red-500 transition-all cursor-pointer self-center shrink-0"
                           title="Unsend Message"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      <div
-                        className={`max-w-[70%] rounded-lg px-4 py-2.5 text-sm leading-relaxed text-left shadow-lg ${
-                          isMine
-                            ? "bg-white text-black font-medium"
-                            : "bg-neutral-900 text-gray-100 border border-gray-800"
-                        }`}
-                      >
-                        <p>{msg.text}</p>
-                      </div>
                     </div>
-                    {/* Timestamp formatted in Indian Standard Time (IST) */}
-                    <span className="text-[9px] text-gray-500 mt-1 block px-1 select-none">
-                      {formatMessageTimeIST(msg.createdAt)}
-                    </span>
-                    {/* Seen Status Receipt under last sent message */}
-                    {isMine && isLastMsg && wasMessageSeen(msg.createdAt) && (
-                      <span className="text-[9px] text-gray-500 mt-1 font-semibold block px-1 select-none animate-fade-in">
-                        Seen
-                      </span>
-                    )}
+                    
+                    {/* Meta details (Time & Seen status) */}
+                    <div className={`flex items-center gap-1.5 text-[9px] text-gray-500 mt-1 ${isMine ? "mr-1 justify-end" : "ml-9.5 justify-start"} select-none`}>
+                      <span>{formatMessageTimeIST(msg.createdAt)}</span>
+                      {isMine && isLastMsg && wasMessageSeen(msg.createdAt) && (
+                        <>
+                          <span className="text-[8px] text-gray-600">•</span>
+                          <span className="font-semibold text-neutral-400 animate-fade-in">Seen</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -486,18 +522,19 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
 
             {/* Bottom Form input dispatch bar */}
             <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-900 bg-black shrink-0">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Type a premium message..."
+              <div className="flex items-end gap-2 bg-neutral-900 border border-gray-800 rounded-xl p-2 focus-within:border-white transition-all">
+                <textarea
+                  placeholder="Message..."
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
-                  className="flex-1 bg-neutral-900 border border-gray-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-white transition-all placeholder:text-gray-500"
+                  onKeyDown={handleKeyDown}
+                  rows={Math.min(4, messageInput.split("\n").length || 1)}
+                  className="flex-1 bg-transparent border-0 px-2.5 py-2 text-sm text-white focus:outline-none focus:ring-0 resize-none min-h-[36px] max-h-[120px] placeholder:text-gray-500 leading-normal scrollbar-thin"
                 />
                 <button
                   type="submit"
                   disabled={!messageInput.trim()}
-                  className="px-5 bg-white hover:bg-neutral-200 disabled:opacity-50 text-black font-bold rounded-lg transition-all flex items-center justify-center cursor-pointer shadow-lg"
+                  className="p-3 bg-white hover:bg-neutral-200 disabled:opacity-40 disabled:hover:bg-white text-black font-bold rounded-lg transition-all flex items-center justify-center cursor-pointer shadow-lg shrink-0 self-end"
                 >
                   <Send className="w-4 h-4" />
                 </button>
