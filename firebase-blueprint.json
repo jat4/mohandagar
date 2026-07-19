@@ -1,0 +1,135 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user profile on DagarChats",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID matching Firebase Auth UID" },
+        "username": { "type": "string", "description": "Unique Instagram-like handle (lowercase, letters, numbers, underscores, dots)" },
+        "fullName": { "type": "string", "description": "Display name of the user" },
+        "email": { "type": "string", "description": "User email address" },
+        "bio": { "type": "string", "description": "User profile biography description" },
+        "photoURL": { "type": "string", "description": "URL to the user's avatar image" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the user was created" }
+      },
+      "required": ["uid", "username", "fullName", "email", "createdAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Represents a user post containing an image and caption",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique post document ID" },
+        "ownerId": { "type": "string", "description": "UID of the user who created the post" },
+        "ownerUsername": { "type": "string", "description": "Username of the post owner" },
+        "ownerPhotoURL": { "type": "string", "description": "Profile picture of the post owner" },
+        "imageURL": { "type": "string", "description": "URL of the post image" },
+        "caption": { "type": "string", "description": "Caption text with optional hashtags" },
+        "likes": { "type": "array", "description": "List of user UIDs who liked this post" },
+        "likesCount": { "type": "integer", "description": "Total number of likes" },
+        "commentsCount": { "type": "integer", "description": "Total number of comments" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the post was created" }
+      },
+      "required": ["id", "ownerId", "ownerUsername", "ownerPhotoURL", "imageURL", "caption", "likes", "likesCount", "commentsCount", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Represents a comment left on a post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique comment ID" },
+        "postId": { "type": "string", "description": "The target post ID" },
+        "ownerId": { "type": "string", "description": "UID of the user who made the comment" },
+        "ownerUsername": { "type": "string", "description": "Username of the commenter" },
+        "ownerPhotoURL": { "type": "string", "description": "Profile picture of the commenter" },
+        "text": { "type": "string", "description": "Comment content text" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the comment was posted" }
+      },
+      "required": ["id", "postId", "ownerId", "ownerUsername", "ownerPhotoURL", "text", "createdAt"]
+    },
+    "Story": {
+      "title": "Story",
+      "description": "Represents a transient story visible for 24 hours",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique story ID" },
+        "ownerId": { "type": "string", "description": "UID of the story creator" },
+        "ownerUsername": { "type": "string", "description": "Username of the story creator" },
+        "ownerPhotoURL": { "type": "string", "description": "Profile picture of the story creator" },
+        "imageURL": { "type": "string", "description": "URL of the story image" },
+        "caption": { "type": "string", "description": "Optional short story caption overlay" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the story was created" }
+      },
+      "required": ["id", "ownerId", "ownerUsername", "ownerPhotoURL", "imageURL", "createdAt"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Represents a messaging thread between two users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique chat room ID (usually combined UIDs)" },
+        "participants": { "type": "array", "description": "Array containing the two user UIDs" },
+        "lastMessage": { "type": "string", "description": "Text content of the latest message" },
+        "lastMessageTime": { "type": "string", "format": "date-time", "description": "Timestamp of the last message" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Timestamp for sorting chats" }
+      },
+      "required": ["id", "participants", "lastMessage", "lastMessageTime", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Represents an individual message in a chat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique message ID" },
+        "chatId": { "type": "string", "description": "ID of the parent Chat" },
+        "senderId": { "type": "string", "description": "UID of the sender" },
+        "receiverId": { "type": "string", "description": "UID of the receiver" },
+        "text": { "type": "string", "description": "Message body text" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the message was sent" }
+      },
+      "required": ["id", "chatId", "senderId", "receiverId", "text", "createdAt"]
+    },
+    "Follow": {
+      "title": "Follow",
+      "description": "Represents follow relationships between users",
+      "type": "object",
+      "properties": {
+        "followerId": { "type": "string", "description": "UID of the user following" },
+        "followingId": { "type": "string", "description": "UID of the user being followed" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["followerId", "followingId"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles database"
+    },
+    "posts": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Feed posts"
+    },
+    "posts/{postId}/comments": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Post comment threads"
+    },
+    "stories": {
+      "schema": { "$ref": "#/entities/Story" },
+      "description": "Transient user stories"
+    },
+    "chats": {
+      "schema": { "$ref": "#/entities/Chat" },
+      "description": "Chat conversations threads"
+    },
+    "chats/{chatId}/messages": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Direct message history inside a conversation"
+    },
+    "follows": {
+      "schema": { "$ref": "#/entities/Follow" },
+      "description": "Follower and following connections"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Mohan Dagar",
+  "description": "An elegant Instagram-like social sharing platform featuring instant direct messages, user profiles, posts with likes/comments, and stories, built on Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
