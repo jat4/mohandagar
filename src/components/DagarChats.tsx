@@ -233,7 +233,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
   };
 
   return (
-    <div className="flex-1 bg-black text-white flex h-[calc(100vh-64px)] overflow-hidden select-none">
+    <div className="flex-1 bg-black text-white flex h-full min-h-0 overflow-hidden select-none">
       {/* Sidebar: Chats List */}
       <div
         className={`w-full md:w-[350px] border-r border-gray-800 bg-black flex flex-col ${
@@ -442,7 +442,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
       </div>
 
       {/* Main Viewport: Conversation Messages Box */}
-      <div className={`flex-1 flex flex-col bg-black h-full ${!activeChat ? "hidden md:flex" : "flex"}`}>
+      <div className={`flex-1 flex flex-col bg-black h-full min-h-0 overflow-hidden ${!activeChat ? "hidden md:flex" : "flex"}`}>
         {activeChat ? (
           <>
             {/* Conversation recipient header */}
