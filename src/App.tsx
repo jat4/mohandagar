@@ -525,11 +525,11 @@ function DashboardLayout() {
             <Route path="post/:postId" element={<PostDetailView />} />
             <Route path="post/:postId/comments" element={<PostDetailView />} />
             <Route path="post/:postId/likes" element={<PostDetailView />} />
-            <Route path="@:username" element={<UserProfileView />} />
-            <Route path="@:username/followers" element={<UserProfileView />} />
-            <Route path="@:username/following" element={<UserProfileView />} />
-            <Route path="@:username/media" element={<UserProfileView />} />
-            <Route path="@:username/tagged" element={<UserProfileView />} />
+            <Route path=":username" element={<UserProfileView />} />
+            <Route path=":username/followers" element={<UserProfileView />} />
+            <Route path=":username/following" element={<UserProfileView />} />
+            <Route path=":username/media" element={<UserProfileView />} />
+            <Route path=":username/tagged" element={<UserProfileView />} />
 
             {/* Static pages */}
             <Route path="about" element={<AboutPage />} />
