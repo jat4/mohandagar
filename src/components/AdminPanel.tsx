@@ -95,14 +95,28 @@ export default function AdminPanel() {
     try {
       await toggleUserProfileVerification(targetUser.uid, !!targetUser.isVerified);
 
-      // Send notification if they are being verified
+      // Send notification if they are being verified or unverified
       if (isNowVerified) {
         await addNotification(targetUser.uid, {
           userId: targetUser.uid,
-          type: "verification",
-          title: "Congratulations! 🎉",
-          message: "Your account is now verified! You've received the Blue Badge on Mohan Dagar.",
-          read: false
+          type: "verification_granted",
+          title: "Your account has been verified.",
+          message: "Congratulations! Your account has been verified by the admin. You will now see a blue verified badge next to your username across the platform. To keep your verified status, continue following our Community Guidelines.",
+          read: false,
+          isPriority: true,
+          destination: "profile",
+          targetId: targetUser.uid
+        });
+      } else {
+        await addNotification(targetUser.uid, {
+          userId: targetUser.uid,
+          type: "verification_removed",
+          title: "Your verified badge has been removed.",
+          message: "Your account is no longer verified. If you believe this is a mistake, please contact support.",
+          read: false,
+          isPriority: true,
+          destination: "profile",
+          targetId: targetUser.uid
         });
       }
 

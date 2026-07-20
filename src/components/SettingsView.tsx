@@ -128,6 +128,53 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
   const [muteNotifications, setMuteNotifications] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
+  // Expanded Instagram-style notification preferences
+  const [likesPref, setLikesPref] = useState(true);
+  const [commentsPref, setCommentsPref] = useState(true);
+  const [mentionsPref, setMentionsPref] = useState(true);
+  const [tagsPref, setTagsPref] = useState(true);
+  const [followsPref, setFollowsPref] = useState(true);
+  const [messagesPref, setMessagesPref] = useState(true);
+  const [storiesPref, setStoriesPref] = useState(true);
+
+  // Load notification preferences
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const stored = localStorage.getItem(`dagar_notification_prefs_${profile.uid}`);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed.likes !== undefined) setLikesPref(parsed.likes);
+        if (parsed.comments !== undefined) setCommentsPref(parsed.comments);
+        if (parsed.mentions !== undefined) setMentionsPref(parsed.mentions);
+        if (parsed.tags !== undefined) setTagsPref(parsed.tags);
+        if (parsed.follows !== undefined) setFollowsPref(parsed.follows);
+        if (parsed.messages !== undefined) setMessagesPref(parsed.messages);
+        if (parsed.stories !== undefined) setStoriesPref(parsed.stories);
+      } catch (e) {
+        console.error("Failed to parse notification prefs:", e);
+      }
+    }
+  }, [profile?.uid]);
+
+  const updatePreference = (key: string, value: boolean) => {
+    if (!profile?.uid) return;
+    const stored = localStorage.getItem(`dagar_notification_prefs_${profile.uid}`);
+    const parsed = stored ? JSON.parse(stored) : {
+      likes: true, comments: true, mentions: true, tags: true, follows: true, messages: true, stories: true
+    };
+    parsed[key] = value;
+    localStorage.setItem(`dagar_notification_prefs_${profile.uid}`, JSON.stringify(parsed));
+    
+    if (key === "likes") setLikesPref(value);
+    if (key === "comments") setCommentsPref(value);
+    if (key === "mentions") setMentionsPref(value);
+    if (key === "tags") setTagsPref(value);
+    if (key === "follows") setFollowsPref(value);
+    if (key === "messages") setMessagesPref(value);
+    if (key === "stories") setStoriesPref(value);
+  };
+
   // Load profile data on start
   useEffect(() => {
     if (profile) {
@@ -577,8 +624,9 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
                 <p className="text-xs text-gray-400 mt-1">Configure your alert settings and mute schedules.</p>
               </div>
 
-              {/* Option Rows */}
+              {/* General Settings */}
               <div className="space-y-4 bg-neutral-950 p-6 border border-gray-900 rounded-xl">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">General</h3>
                 <div className="flex items-center justify-between py-3 border-b border-gray-900">
                   <div>
                     <h4 className="font-semibold text-sm text-white">Pause All Notifications</h4>
@@ -609,6 +657,137 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
                   >
                     <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${
                       soundEnabled ? "translate-x-5" : ""
+                    }`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Preference Controls */}
+              <div className="space-y-4 bg-neutral-950 p-6 border border-gray-900 rounded-xl">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Notification Preferences</h3>
+                
+                {/* Likes Pref */}
+                <div className="flex items-center justify-between py-3 border-b border-gray-900">
+                  <div>
+                    <h4 className="font-semibold text-sm text-white">Likes</h4>
+                    <p className="text-xs text-gray-500 mt-0.5">Get notified when someone likes your posts or reels.</p>
+                  </div>
+                  <button
+                    onClick={() => updatePreference("likes", !likesPref)}
+                    className={`w-11 h-6 rounded-full transition-colors relative focus:outline-none cursor-pointer ${
+                      likesPref ? "bg-blue-600" : "bg-neutral-800"
+                    }`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                      likesPref ? "translate-x-5" : ""
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Comments Pref */}
+                <div className="flex items-center justify-between py-3 border-b border-gray-900">
+                  <div>
+                    <h4 className="font-semibold text-sm text-white">Comments</h4>
+                    <p className="text-xs text-gray-500 mt-0.5">Get notified when someone comments on your posts or reels.</p>
+                  </div>
+                  <button
+                    onClick={() => updatePreference("comments", !commentsPref)}
+                    className={`w-11 h-6 rounded-full transition-colors relative focus:outline-none cursor-pointer ${
+                      commentsPref ? "bg-blue-600" : "bg-neutral-800"
+                    }`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                      commentsPref ? "translate-x-5" : ""
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Mentions Pref */}
+                <div className="flex items-center justify-between py-3 border-b border-gray-900">
+                  <div>
+                    <h4 className="font-semibold text-sm text-white">Mentions</h4>
+                    <p className="text-xs text-gray-500 mt-0.5">Get notified when someone mentions you in captions or comments.</p>
+                  </div>
+                  <button
+                    onClick={() => updatePreference("mentions", !mentionsPref)}
+                    className={`w-11 h-6 rounded-full transition-colors relative focus:outline-none cursor-pointer ${
+                      mentionsPref ? "bg-blue-600" : "bg-neutral-800"
+                    }`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                      mentionsPref ? "translate-x-5" : ""
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Tags Pref */}
+                <div className="flex items-center justify-between py-3 border-b border-gray-900">
+                  <div>
+                    <h4 className="font-semibold text-sm text-white">Tags</h4>
+                    <p className="text-xs text-gray-500 mt-0.5">Get notified when you are tagged in posts or reels.</p>
+                  </div>
+                  <button
+                    onClick={() => updatePreference("tags", !tagsPref)}
+                    className={`w-11 h-6 rounded-full transition-colors relative focus:outline-none cursor-pointer ${
+                      tagsPref ? "bg-blue-600" : "bg-neutral-800"
+                    }`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                      tagsPref ? "translate-x-5" : ""
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Follows Pref */}
+                <div className="flex items-center justify-between py-3 border-b border-gray-900">
+                  <div>
+                    <h4 className="font-semibold text-sm text-white">Follows</h4>
+                    <p className="text-xs text-gray-500 mt-0.5">Get notified on new followers or follow requests.</p>
+                  </div>
+                  <button
+                    onClick={() => updatePreference("follows", !followsPref)}
+                    className={`w-11 h-6 rounded-full transition-colors relative focus:outline-none cursor-pointer ${
+                      followsPref ? "bg-blue-600" : "bg-neutral-800"
+                    }`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                      followsPref ? "translate-x-5" : ""
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Messages Pref */}
+                <div className="flex items-center justify-between py-3 border-b border-gray-900">
+                  <div>
+                    <h4 className="font-semibold text-sm text-white">Messages</h4>
+                    <p className="text-xs text-gray-500 mt-0.5">Get notified on direct messages or message requests.</p>
+                  </div>
+                  <button
+                    onClick={() => updatePreference("messages", !messagesPref)}
+                    className={`w-11 h-6 rounded-full transition-colors relative focus:outline-none cursor-pointer ${
+                      messagesPref ? "bg-blue-600" : "bg-neutral-800"
+                    }`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                      messagesPref ? "translate-x-5" : ""
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Stories Pref */}
+                <div className="flex items-center justify-between py-3">
+                  <div>
+                    <h4 className="font-semibold text-sm text-white">Stories</h4>
+                    <p className="text-xs text-gray-500 mt-0.5">Get notified when someone likes or mentions you in stories.</p>
+                  </div>
+                  <button
+                    onClick={() => updatePreference("stories", !storiesPref)}
+                    className={`w-11 h-6 rounded-full transition-colors relative focus:outline-none cursor-pointer ${
+                      storiesPref ? "bg-blue-600" : "bg-neutral-800"
+                    }`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                      storiesPref ? "translate-x-5" : ""
                     }`} />
                   </button>
                 </div>
