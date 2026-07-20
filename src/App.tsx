@@ -277,7 +277,26 @@ function DashboardLayout() {
   useEffect(() => {
     if (!profile?.uid) return;
     const unsubscribe = subscribeToNotifications(profile.uid, (notifs) => {
-      const count = notifs.filter((n) => !n.read).length;
+      // Load user preferences
+      const storedPrefs = localStorage.getItem(`dagar_notification_prefs_${profile.uid}`);
+      let prefs = { likes: true, comments: true, mentions: true, tags: true, follows: true, messages: true, stories: true };
+      if (storedPrefs) {
+        try { prefs = JSON.parse(storedPrefs); } catch (e) {}
+      }
+
+      const filtered = notifs.filter((notif) => {
+        const type = notif.type;
+        if (!prefs.likes && (type === "like" || type === "like_reel")) return false;
+        if (!prefs.comments && (type === "comment" || type === "comment_reel" || type === "reply_comment")) return false;
+        if (!prefs.mentions && (type === "mention_comment" || type === "mention_caption" || type === "story_mention")) return false;
+        if (!prefs.tags && (type === "tag_post" || type === "tag_reel")) return false;
+        if (!prefs.follows && (type === "follow" || type === "follow_request" || type === "follow_request_accepted")) return false;
+        if (!prefs.messages && (type === "message_request")) return false;
+        if (!prefs.stories && (type === "story_like" || type === "story_mention")) return false;
+        return true;
+      });
+
+      const count = filtered.filter((n) => !n.read).length;
       setUnreadNotificationsCount(count);
     });
     return () => unsubscribe();

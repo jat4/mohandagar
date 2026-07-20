@@ -17,13 +17,19 @@ export interface UserProfile {
 export interface AppNotification {
   id: string;
   userId: string;
-  type: "verification" | "like" | "comment" | "follow";
+  type: string;
   title: string;
   message: string;
   read: boolean;
   createdAt: Timestamp | Date | any;
   senderId?: string;
   postId?: string;
+  isPriority?: boolean;
+  destination?: "profile" | "post" | "story" | "comment" | string;
+  targetId?: string;
+  senderUsername?: string;
+  senderPhotoURL?: string;
+  postImageURL?: string;
 }
 
 export interface PostReport {
