@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Chat, Message, UserProfile } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { DEFAULT_AVATAR_URL } from "../constants";
@@ -24,11 +24,14 @@ interface DagarChatsProps {
 
 export default function DagarChats({ initialTargetUserId, onUserProfileClick }: DagarChatsProps) {
   const navigate = useNavigate();
+  const { conversationId } = useParams<{ conversationId?: string }>();
+  const location = useLocation();
   const { profile: myProfile } = useAuth();
   const [chats, setChats] = useState<Chat[]>([]);
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [hasLoadedChats, setHasLoadedChats] = useState(false);
   const [tempActiveChat, setTempActiveChat] = useState<Chat | null>(null);
 
+  const activeChatId = conversationId || null;
   const activeChat = (activeChatId ? chats.find((c) => c.id === activeChatId) : null) || tempActiveChat;
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -85,22 +88,52 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
     if (!myProfile) return;
     const unsubscribe = subscribeToUserChats(myProfile.uid, (loadedChats) => {
       setChats(loadedChats);
-
-      // Handle initial target chat redirect
-      if (initialTargetUserId) {
-        const existing = loadedChats.find((c) => c.participants.includes(initialTargetUserId));
-        if (existing) {
-          setActiveChatId(existing.id);
-          setTempActiveChat(null);
-        } else {
-          // Trigger getOrCreateChat manually
-          setupDirectChat(initialTargetUserId);
-        }
-      }
+      setHasLoadedChats(true);
     });
 
     return () => unsubscribe();
-  }, [myProfile, initialTargetUserId]);
+  }, [myProfile]);
+
+  const directUserId = location.state?.directUserId;
+  const targetUserId = initialTargetUserId || directUserId;
+
+  // Handle direct message targets from location state or props
+  useEffect(() => {
+    if (!myProfile || !targetUserId || !hasLoadedChats) return;
+
+    let isMounted = true;
+
+    async function handleTargetChat() {
+      const existing = chats.find((c) => c.participants.includes(targetUserId));
+      if (existing) {
+        if (isMounted) {
+          navigate(`/messages/${existing.id}`, { replace: true, state: {} });
+        }
+      } else {
+        try {
+          const chatId = await getOrCreateChat(myProfile!.uid, targetUserId);
+          if (isMounted) {
+            navigate(`/messages/${chatId}`, { replace: true, state: {} });
+          }
+        } catch (err) {
+          console.error("Failed to setup direct target chat", err);
+        }
+      }
+    }
+
+    handleTargetChat();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [myProfile, targetUserId, hasLoadedChats, chats, navigate]);
+
+  // Clear tempActiveChat once the active chat exists in the loaded list
+  useEffect(() => {
+    if (activeChatId && chats.some((c) => c.id === activeChatId)) {
+      setTempActiveChat(null);
+    }
+  }, [chats, activeChatId]);
 
   // 2. Subscribe to messages inside the active chat
   useEffect(() => {
@@ -184,8 +217,8 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
       if (targetUser) {
         targetChat.otherUser = targetUser;
       }
-      setActiveChatId(chatId);
       setTempActiveChat(targetChat as Chat);
+      navigate(`/messages/${chatId}`);
       setSearchQuery("");
       setSearchResults([]);
     } catch (err) {
@@ -355,7 +388,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
                     <div
                       key={chat.id}
                       onClick={() => {
-                        setActiveChatId(chat.id);
+                        navigate(`/messages/${chat.id}`);
                         setTempActiveChat(null);
                         setSearchQuery("");
                         // Mark as read in local storage
@@ -395,7 +428,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
                                     await deleteChat(chat.id, myProfile.uid);
                                   }
                                   if (activeChatId === chat.id) {
-                                    setActiveChatId(null);
+                                    navigate("/messages");
                                     setTempActiveChat(null);
                                   }
                                   setDeletingChatId(null);
@@ -452,7 +485,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
             <div className="px-6 py-4 border-b border-gray-900 bg-black flex items-center gap-3 shrink-0">
               <button
                 onClick={() => {
-                  setActiveChatId(null);
+                  navigate("/messages");
                   setTempActiveChat(null);
                 }}
                 className="md:hidden p-1.5 hover:bg-white/5 rounded-full text-gray-400 hover:text-white mr-1.5 transition-colors cursor-pointer"
