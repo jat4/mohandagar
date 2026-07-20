@@ -1,23 +1,34 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Post, Comment } from "../types";
 import { useAuth } from "../context/AuthContext";
-import { subscribeToFeed, toggleLikePost, addComment, subscribeToComments, deleteComment } from "../services/dbService";
+import { subscribeToFeed, toggleLikePost, addComment, subscribeToComments, deleteComment, subscribeToFollowing } from "../services/dbService";
 import StoriesSection from "./StoriesSection";
 import UsernameWithBadge from "./UsernameWithBadge";
 import { motion, AnimatePresence } from "motion/react";
 import { Heart, MessageCircle, Share2, Compass, AlertCircle, Bookmark, Plus, MessageSquare } from "lucide-react";
 
 interface HomeFeedProps {
-  onUserProfileClick: (userId: string) => void;
-  onAddStoryClick: () => void;
-  onOpenDirectChat: (targetUserId: string) => void;
+  onUserProfileClick?: (userId: string) => void;
+  onAddStoryClick?: () => void;
+  onOpenDirectChat?: (targetUserId: string) => void;
 }
 
 export default function HomeFeed({ onUserProfileClick, onAddStoryClick, onOpenDirectChat }: HomeFeedProps) {
+  const navigate = useNavigate();
   const { profile: myProfile } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [expandedCommentsPostId, setExpandedCommentsPostId] = useState<string | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!myProfile?.uid) return;
+    const unsub = subscribeToFollowing(myProfile.uid, (ids) => {
+      setFollowingIds(ids);
+    });
+    return () => unsub();
+  }, [myProfile?.uid]);
 
   useEffect(() => {
     // Realtime subscription to post feed
@@ -25,12 +36,26 @@ export default function HomeFeed({ onUserProfileClick, onAddStoryClick, onOpenDi
       const filtered = loadedPosts.filter((post) => {
         // Filter out posts from blocked users
         if (myProfile?.blockedUsers?.includes(post.ownerId)) return false;
+
+        // If post has no visibility or is "public", everyone can see it
+        if (!post.visibility || post.visibility === "public") return true;
+
+        // If post is "private", only the owner can see it
+        if (post.visibility === "private") {
+          return post.ownerId === myProfile?.uid;
+        }
+
+        // If post is "followers", only the owner OR their followers can see it
+        if (post.visibility === "followers") {
+          return post.ownerId === myProfile?.uid || followingIds.includes(post.ownerId);
+        }
+
         return true;
       });
       setPosts(filtered);
     });
     return () => unsubscribe();
-  }, [myProfile]);
+  }, [myProfile, followingIds]);
 
   const handleLike = async (post: Post) => {
     if (!myProfile) return;
@@ -89,7 +114,7 @@ export default function HomeFeed({ onUserProfileClick, onAddStoryClick, onOpenDi
                 myProfile={myProfile}
                 onLike={() => handleLike(post)}
                 onShare={() => handleShareClick(post)}
-                onUserClick={onUserProfileClick}
+                onUserClick={() => navigate(`/@${post.ownerUsername}`)}
                 onMessageClick={onOpenDirectChat}
                 isExpanded={expandedCommentsPostId === post.id}
                 onToggleComments={() => toggleCommentsExpansion(post.id)}
@@ -124,6 +149,7 @@ const PostItem: React.FC<PostItemProps> = ({
   isExpanded,
   onToggleComments
 }) => {
+  const navigate = useNavigate();
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentInput, setCommentInput] = useState("");
   const [replyToComment, setReplyToComment] = useState<{ id: string; username: string; ownerId: string } | null>(null);
@@ -188,13 +214,13 @@ const PostItem: React.FC<PostItemProps> = ({
           <img
             src={post.ownerPhotoURL}
             alt={post.ownerUsername}
-            onClick={() => onUserClick(post.ownerId)}
+            onClick={() => navigate(`/@${post.ownerUsername}`)}
             className="w-8 h-8 rounded-full border border-gray-800 object-cover cursor-pointer hover:opacity-85 transition-opacity"
             referrerPolicy="no-referrer"
           />
           <div className="text-left">
             <div
-              onClick={() => onUserClick(post.ownerId)}
+              onClick={() => navigate(`/@${post.ownerUsername}`)}
               className="text-sm font-bold text-white cursor-pointer hover:text-gray-300 transition-all"
             >
               <UsernameWithBadge userId={post.ownerId} username={post.ownerUsername} />
@@ -313,7 +339,7 @@ const PostItem: React.FC<PostItemProps> = ({
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-200 leading-relaxed break-words">
                           <span
-                            onClick={() => onUserClick(comment.ownerId)}
+                            onClick={() => navigate(`/@${comment.ownerUsername}`)}
                             className="font-bold mr-1 text-white cursor-pointer hover:text-gray-300 inline-block"
                           >
                             <UsernameWithBadge userId={comment.ownerId} username={comment.ownerUsername} />

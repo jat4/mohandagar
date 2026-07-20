@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { UserProfile, Post, Comment } from "../types";
 import { useAuth } from "../context/AuthContext";
-import { searchUsers, subscribeToFeed, toggleLikePost, addComment, subscribeToComments, deleteComment } from "../services/dbService";
+import { searchUsers, subscribeToFeed, toggleLikePost, addComment, subscribeToComments, deleteComment, subscribeToFollowing } from "../services/dbService";
 import UsernameWithBadge from "./UsernameWithBadge";
 import { motion, AnimatePresence } from "motion/react";
 import { Search, Heart, MessageCircle, User, Compass, X } from "lucide-react";
 
 interface SearchExploreProps {
-  onUserProfileClick: (userId: string) => void;
+  onUserProfileClick?: (userId: string) => void;
 }
 
 export default function SearchExplore({ onUserProfileClick }: SearchExploreProps) {
+  const navigate = useNavigate();
   const { profile: myProfile } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
@@ -22,14 +24,42 @@ export default function SearchExplore({ onUserProfileClick }: SearchExploreProps
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentInput, setCommentInput] = useState("");
   const [replyToComment, setReplyToComment] = useState<{ id: string; username: string; ownerId: string } | null>(null);
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!myProfile?.uid) return;
+    const unsub = subscribeToFollowing(myProfile.uid, (ids) => {
+      setFollowingIds(ids);
+    });
+    return () => unsub();
+  }, [myProfile?.uid]);
 
   // Sub to all feed posts for exploring
   useEffect(() => {
     const unsubscribe = subscribeToFeed((loadedPosts) => {
-      setExplorePosts(loadedPosts);
+      const filtered = loadedPosts.filter((post) => {
+        // Filter out posts from blocked users
+        if (myProfile?.blockedUsers?.includes(post.ownerId)) return false;
+
+        // If post has no visibility or is "public", everyone can see it
+        if (!post.visibility || post.visibility === "public") return true;
+
+        // If post is "private", only the owner can see it
+        if (post.visibility === "private") {
+          return post.ownerId === myProfile?.uid;
+        }
+
+        // If post is "followers", only the owner OR their followers can see it
+        if (post.visibility === "followers") {
+          return post.ownerId === myProfile?.uid || followingIds.includes(post.ownerId);
+        }
+
+        return true;
+      });
+      setExplorePosts(filtered);
     });
     return () => unsubscribe();
-  }, []);
+  }, [myProfile, followingIds]);
 
   // Search logic triggers
   useEffect(() => {
@@ -135,7 +165,7 @@ export default function SearchExplore({ onUserProfileClick }: SearchExploreProps
                 {searchResults.map((user) => (
                   <div
                     key={user.uid}
-                    onClick={() => onUserProfileClick(user.uid)}
+                    onClick={() => navigate(`/@${user.username}`)}
                     className="flex items-center gap-3 py-3 px-2 hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
                   >
                     <img

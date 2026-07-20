@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Chat, Message, UserProfile } from "../types";
 import { useAuth } from "../context/AuthContext";
+import { DEFAULT_AVATAR_URL } from "../constants";
 import {
   subscribeToUserChats,
   subscribeToMessages,
@@ -17,10 +19,11 @@ import { MessageSquare, Send, Search, User, ArrowLeft, ShieldAlert, Trash2 } fro
 
 interface DagarChatsProps {
   initialTargetUserId?: string | null; // Optional target to start chat with directly
-  onUserProfileClick: (userId: string) => void;
+  onUserProfileClick?: (userId: string) => void;
 }
 
 export default function DagarChats({ initialTargetUserId, onUserProfileClick }: DagarChatsProps) {
+  const navigate = useNavigate();
   const { profile: myProfile } = useAuth();
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -458,16 +461,16 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
               </button>
 
               <img
-                src={activeChat.otherUser?.photoURL || "https://api.dicebear.com/7.x/adventurer/svg?seed=MohanDagar"}
+                src={activeChat.otherUser?.photoURL || DEFAULT_AVATAR_URL}
                 alt={activeChat.otherUser?.username || "Recipient"}
                 className="w-9 h-9 rounded-full object-cover border border-gray-800 cursor-pointer hover:opacity-85"
-                onClick={() => activeChat.otherUser?.uid && onUserProfileClick(activeChat.otherUser.uid)}
+                onClick={() => activeChat.otherUser?.username && navigate(`/@${activeChat.otherUser.username}`)}
                 referrerPolicy="no-referrer"
               />
 
               <div className="text-left flex-1">
                 <div
-                  onClick={() => activeChat.otherUser?.uid && onUserProfileClick(activeChat.otherUser.uid)}
+                  onClick={() => activeChat.otherUser?.username && navigate(`/@${activeChat.otherUser.username}`)}
                   className="text-sm font-bold text-white cursor-pointer hover:text-gray-300 transition-colors inline-block"
                 >
                   <UsernameWithBadge userId={activeChat.otherUser?.uid || ""} username={activeChat.otherUser?.username || "User"} />
@@ -489,10 +492,10 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
                       {/* Recipient Profile Photo next to message bubble */}
                       {!isMine && (
                         <img
-                          src={activeChat.otherUser?.photoURL || "https://api.dicebear.com/7.x/adventurer/svg?seed=MohanDagar"}
+                          src={activeChat.otherUser?.photoURL || DEFAULT_AVATAR_URL}
                           alt="User"
                           className="w-7 h-7 rounded-full object-cover shrink-0 border border-neutral-800 self-end mb-0.5 cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => activeChat.otherUser?.uid && onUserProfileClick(activeChat.otherUser.uid)}
+                          onClick={() => activeChat.otherUser?.username && navigate(`/@${activeChat.otherUser.username}`)}
                           referrerPolicy="no-referrer"
                         />
                       )}

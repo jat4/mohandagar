@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { UserProfile, Post, Comment } from "../types";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -13,9 +14,10 @@ import {
   unfollowUser,
   addNotification,
   checkUsernameExists,
-  deleteComment
+  deleteComment,
+  getUserProfileByUsername
 } from "../services/dbService";
-import { PROFILE_AVATARS } from "../constants";
+import { PROFILE_AVATARS, DEFAULT_AVATAR_URL } from "../constants";
 import UsernameWithBadge from "./UsernameWithBadge";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -37,7 +39,8 @@ import {
   UserMinus,
   Camera,
   Upload,
-  Lock
+  Lock,
+  User
 } from "lucide-react";
 
 interface UserProfileViewProps {
@@ -49,10 +52,14 @@ interface UserProfileViewProps {
 }
 
 export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectChat, onOpenSettings, onUserProfileClick }: UserProfileViewProps) {
+  const { username } = useParams<{ username?: string }>();
+  const navigate = useNavigate();
   const { profile: myProfile, logOut, refreshProfile } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [userNotFound, setUserNotFound] = useState(false);
+  const [resolvingProfile, setResolvingProfile] = useState(false);
 
   // Modals / Detail triggers
   const [isEditing, setIsEditing] = useState(false);
@@ -78,39 +85,108 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
   const [following, setFollowing] = useState<string[]>([]);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
-  // Subscribe to feed and filter by user
+  // Synchronize URL-based profile fetching
   useEffect(() => {
-    const targetId = profileId || myProfile?.uid;
-    if (!targetId) return;
-
-    setIsOwnProfile(targetId === myProfile?.uid);
-
-    // Fetch user profiles (if own profile, can read from myProfile context)
-    const loadProfile = async () => {
-      if (targetId === myProfile?.uid) {
-        setProfile(myProfile);
-        setEditFullName(myProfile.fullName);
-        setEditBio(myProfile.bio);
-        setEditAvatar(myProfile.photoURL);
-        setEditUsername(myProfile.username);
-        setUsernameStatus({ checked: true, available: true, loading: false });
-        setEditError("");
+    let active = true;
+    
+    const loadProfileByParams = async () => {
+      if (username) {
+        setResolvingProfile(true);
+        setUserNotFound(false);
+        try {
+          const fetched = await getUserProfileByUsername(username);
+          if (!active) return;
+          if (fetched) {
+            setProfile(fetched);
+            setIsOwnProfile(fetched.uid === myProfile?.uid);
+            if (fetched.uid === myProfile?.uid) {
+              setEditFullName(fetched.fullName || "");
+              setEditBio(fetched.bio || "");
+              setEditAvatar(fetched.photoURL || "");
+              setEditUsername(fetched.username || "");
+            }
+          } else {
+            setProfile(null);
+            setUserNotFound(true);
+          }
+        } catch (err) {
+          console.error("Error loading user profile", err);
+          if (active) {
+            setProfile(null);
+            setUserNotFound(true);
+          }
+        } finally {
+          if (active) setResolvingProfile(false);
+        }
       } else {
-        // Query users
-        const { getUserProfile } = await import("../services/dbService");
-        const p = await getUserProfile(targetId);
-        setProfile(p);
+        const targetId = profileId || myProfile?.uid;
+        if (!targetId) return;
+
+        setIsOwnProfile(targetId === myProfile?.uid);
+        setResolvingProfile(true);
+        setUserNotFound(false);
+        try {
+          if (targetId === myProfile?.uid) {
+            setProfile(myProfile);
+            setEditFullName(myProfile.fullName || "");
+            setEditBio(myProfile.bio || "");
+            setEditAvatar(myProfile.photoURL || "");
+            setEditUsername(myProfile.username || "");
+          } else {
+            const { getUserProfile } = await import("../services/dbService");
+            const p = await getUserProfile(targetId);
+            if (p) {
+              setProfile(p);
+            } else {
+              setUserNotFound(true);
+            }
+          }
+        } catch (err) {
+          console.error("Error fallback loading", err);
+          setUserNotFound(true);
+        } finally {
+          setResolvingProfile(false);
+        }
       }
     };
-    loadProfile();
+
+    loadProfileByParams();
+
+    return () => {
+      active = false;
+    };
+  }, [username, profileId, myProfile]);
+
+  // Subscribe to feed and filter by user
+  useEffect(() => {
+    const targetId = profile?.uid;
+    if (!targetId) return;
 
     const unsubscribe = subscribeToFeed((loadedPosts) => {
-      const userPosts = loadedPosts.filter((post) => post.ownerId === targetId);
+      const userPosts = loadedPosts.filter((post) => {
+        if (post.ownerId !== targetId) return false;
+
+        // If post has no visibility or is "public", everyone can see it
+        if (!post.visibility || post.visibility === "public") return true;
+
+        // If post is "private", only the owner can see it
+        if (post.visibility === "private") {
+          return post.ownerId === myProfile?.uid;
+        }
+
+        // If post is "followers", only the owner OR their followers can see it
+        if (post.visibility === "followers") {
+          const isUserFollower = myProfile ? followers.includes(myProfile.uid) : false;
+          return post.ownerId === myProfile?.uid || isUserFollower;
+        }
+
+        return true;
+      });
       setPosts(userPosts);
     });
 
     return () => unsubscribe();
-  }, [profileId, myProfile]);
+  }, [profile?.uid, myProfile?.uid, followers]);
 
   // Subscribe to comments on active selected post lightbox
   useEffect(() => {
@@ -126,7 +202,7 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
 
   // Subscribe to follower & following lists
   useEffect(() => {
-    const targetId = profileId || myProfile?.uid;
+    const targetId = profile?.uid;
     if (!targetId) return;
 
     const unsubscribeFollowers = subscribeToFollowers(targetId, (loadedFollowers) => {
@@ -141,7 +217,7 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
       unsubscribeFollowers();
       unsubscribeFollowing();
     };
-  }, [profileId, myProfile]);
+  }, [profile?.uid]);
 
   const isFollowing = myProfile ? followers.includes(myProfile.uid) : false;
 
@@ -337,9 +413,29 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
     }
   };
 
-  if (!profile) {
+  if (userNotFound) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-black text-gray-400">
+      <div className="flex-1 flex flex-col items-center justify-center bg-black text-white p-8 text-center min-h-screen">
+        <div className="bg-neutral-900 border border-gray-800 p-4 rounded-full mb-6">
+          <User className="w-12 h-12 text-gray-500 animate-pulse" />
+        </div>
+        <h1 className="text-3xl font-black mb-2">User Not Found</h1>
+        <p className="text-gray-400 max-w-sm text-xs leading-relaxed mb-6">
+          The profile @{username} could not be resolved in the Mohan Dagar registry database.
+        </p>
+        <button
+          onClick={() => navigate("/")}
+          className="px-6 py-2.5 bg-white text-black text-xs font-bold rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors"
+        >
+          Back to Home Feed
+        </button>
+      </div>
+    );
+  }
+
+  if (resolvingProfile || !profile) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-black text-gray-500 min-h-screen">
         <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -599,7 +695,6 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
                     <FollowUserItem
                       key={uid}
                       userId={uid}
-                      onUserClick={onUserProfileClick || (() => {})}
                       onClose={() => setShowFollowsModal(null)}
                     />
                   ))
@@ -634,16 +729,25 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
                 {/* Profile Photo File Upload */}
                 <div className="flex items-center gap-4 bg-neutral-950 p-3.5 border border-gray-900 rounded-xl">
                   <img
-                    src={editAvatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${myProfile?.uid}`}
+                    src={editAvatar || DEFAULT_AVATAR_URL}
                     alt="Edit Profile Photo"
                     className="w-14 h-14 rounded-full border border-gray-800 object-cover bg-neutral-900"
                   />
                   <div className="flex-1 space-y-1">
-                    <label className="inline-flex items-center gap-1 bg-neutral-900 hover:bg-neutral-800 border border-gray-800 text-[11px] text-gray-300 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all font-semibold">
-                      <Upload className="w-3 h-3" />
-                      Upload Photo
-                      <input type="file" accept="image/*" onChange={handleEditPhotoUpload} className="hidden" />
-                    </label>
+                    <div className="flex gap-2">
+                      <label className="inline-flex items-center gap-1 bg-neutral-900 hover:bg-neutral-800 border border-gray-800 text-[11px] text-gray-300 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all font-semibold">
+                        <Upload className="w-3 h-3" />
+                        Upload Photo
+                        <input type="file" accept="image/*" onChange={handleEditPhotoUpload} className="hidden" />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setEditAvatar(DEFAULT_AVATAR_URL)}
+                        className="inline-flex items-center gap-1 bg-red-950/25 hover:bg-red-950/40 border border-red-900/40 text-[11px] text-red-400 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all font-semibold"
+                      >
+                        Remove Photo
+                      </button>
+                    </div>
                     <p className="text-[9px] text-gray-500">Max size: 200KB</p>
                   </div>
                 </div>
@@ -1017,9 +1121,9 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
 
 const FollowUserItem: React.FC<{
   userId: string;
-  onUserClick: (uid: string) => void;
   onClose: () => void;
-}> = ({ userId, onUserClick, onClose }) => {
+}> = ({ userId, onClose }) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1062,7 +1166,7 @@ const FollowUserItem: React.FC<{
     <div className="flex items-center justify-between py-2 border-b border-neutral-900/50 last:border-b-0">
       <div
         onClick={() => {
-          onUserClick(user.uid);
+          navigate(`/@${user.username}`);
           onClose();
         }}
         className="flex items-center gap-3 cursor-pointer group"
