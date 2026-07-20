@@ -4,7 +4,11 @@ import { checkUsernameExists } from "../services/dbService";
 import { motion, AnimatePresence } from "motion/react";
 import { LogIn, UserPlus, AlertCircle, Sparkles, Send } from "lucide-react";
 
-export default function AuthScreen() {
+interface AuthScreenProps {
+  initialIsSignUp?: boolean;
+}
+
+export default function AuthScreen({ initialIsSignUp = false }: AuthScreenProps) {
   const {
     signUp,
     logIn,
@@ -14,7 +18,11 @@ export default function AuthScreen() {
     googleUserTemp
   } = useAuth();
 
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(initialIsSignUp);
+
+  useEffect(() => {
+    setIsSignUp(initialIsSignUp);
+  }, [initialIsSignUp]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
