@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { PROFILE_AVATARS } from "../constants";
+import { PROFILE_AVATARS, DEFAULT_AVATAR_URL } from "../constants";
 import { createUserProfile, checkUsernameExists, getUserProfile } from "../services/dbService";
 import {
   User,
@@ -28,6 +29,28 @@ interface SettingsViewProps {
 export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
   const { profile, logOut, refreshProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>("edit-profile");
+  const { tab } = useParams<{ tab?: string }>();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!tab) return;
+    if (tab === "profile" || tab === "edit-profile") {
+      setActiveTab("edit-profile");
+      setShowBlockedList(false);
+    } else if (tab === "privacy") {
+      setActiveTab("privacy");
+      setShowBlockedList(false);
+    } else if (tab === "blocked") {
+      setActiveTab("privacy");
+      setShowBlockedList(true);
+    } else if (tab === "security" || tab === "account" || tab === "notifications") {
+      setActiveTab("notifications");
+      setShowBlockedList(false);
+    } else if (tab === "help" || tab === "about") {
+      setActiveTab("about");
+      setShowBlockedList(false);
+    }
+  }, [tab]);
 
   // Edit profile form state
   const [fullName, setFullName] = useState("");
@@ -255,7 +278,13 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  const targetSubPath = 
+                    tab.id === 'edit-profile' ? 'profile' :
+                    tab.id === 'notifications' ? 'security' :
+                    tab.id;
+                  navigate('/settings/' + targetSubPath);
+                }}
                 className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all cursor-pointer ${
                   isSelected
                     ? "bg-neutral-900 text-white font-semibold"
@@ -298,7 +327,7 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
               <div className="flex items-center gap-5 bg-neutral-950 p-5 border border-gray-900 rounded-2xl">
                 <div className="relative group">
                   <img
-                    src={selectedAvatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${profile?.uid}`}
+                    src={selectedAvatar || DEFAULT_AVATAR_URL}
                     alt={profile?.username}
                     className="w-20 h-20 rounded-full border border-gray-800 object-cover bg-neutral-900"
                   />
@@ -315,11 +344,20 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
                   <p className="text-xs text-gray-500">{profile?.email}</p>
                   
                   {/* File upload button */}
-                  <label className="inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 border border-gray-800 text-xs text-gray-300 px-3 py-1.5 rounded-lg cursor-pointer transition-all font-semibold">
-                    <Upload className="w-3.5 h-3.5" />
-                    Upload Profile Photo
-                    <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                  </label>
+                  <div className="flex gap-2">
+                    <label className="inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 border border-gray-800 text-xs text-gray-300 px-3 py-1.5 rounded-lg cursor-pointer transition-all font-semibold">
+                      <Upload className="w-3.5 h-3.5" />
+                      Upload Profile Photo
+                      <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAvatar(DEFAULT_AVATAR_URL)}
+                      className="inline-flex items-center gap-1.5 bg-red-950/25 hover:bg-red-950/40 border border-red-900/40 text-xs text-red-400 px-3 py-1.5 rounded-lg cursor-pointer transition-all font-semibold"
+                    >
+                      Remove Photo
+                    </button>
+                  </div>
                   <p className="text-[10px] text-gray-600">Max size: 200KB (JPEG/PNG/WEBP)</p>
                 </div>
               </div>
@@ -440,7 +478,7 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
                         <p className="text-[10px] text-gray-500 mt-0.5">Accounts you have blocked cannot find or see your posts.</p>
                       </div>
                       <button
-                        onClick={() => setShowBlockedList(false)}
+                        onClick={() => navigate('/settings/privacy')}
                         className="text-xs text-blue-500 font-bold hover:text-blue-400 cursor-pointer"
                       >
                         Back
@@ -519,7 +557,7 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
                         <p className="text-xs text-gray-500 mt-0.5">View and manage blocked users list.</p>
                       </div>
                       <button
-                        onClick={() => setShowBlockedList(true)}
+                        onClick={() => navigate('/settings/blocked')}
                         className="text-xs text-blue-500 font-bold hover:text-blue-400 cursor-pointer"
                       >
                         Manage
