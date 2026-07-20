@@ -15,10 +15,12 @@ import {
   serverTimestamp,
   limit,
   increment,
-  deleteDoc
+  deleteDoc,
+  collectionGroup
 } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType, isLocalDemo } from "../firebase";
-import { UserProfile, Post, Comment, Story, Chat, Message, AppNotification } from "../types";
+import { UserProfile, Post, Comment, Story, Chat, Message, AppNotification, PostReport } from "../types";
+import { DEFAULT_AVATAR_URL } from "../constants";
 
 /**
  * Local Storage Seeding Utility
@@ -157,7 +159,7 @@ export async function createUserProfile(uid: string, profile: Partial<UserProfil
   const cleanUsername = profile.username?.trim().toLowerCase() || "";
   const cleanFullName = profile.fullName?.trim() || "Mohan Dagar User";
   const bioValue = profile.bio || "Hello! I am on Mohan Dagar.";
-  const photoUrlValue = profile.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${uid}`;
+  const photoUrlValue = profile.photoURL || DEFAULT_AVATAR_URL;
 
   if (isLocalDemo()) {
     const users = getLocalUsers();
@@ -325,6 +327,67 @@ export async function createPost(post: Omit<Post, "id" | "likes" | "likesCount" 
 }
 
 /**
+ * Deletes a post from Firestore or localStorage, cascading to all related comments, likes, notifications and reports.
+ */
+export async function deletePost(postId: string): Promise<void> {
+  if (isLocalDemo()) {
+    const posts = getLocalPosts();
+    const updated = posts.filter(p => p.id !== postId);
+    saveLocalPosts(updated);
+
+    // Cascading comments deletion
+    const comments = getLocalComments();
+    const filteredComments = comments.filter(c => c.postId !== postId);
+    saveLocalComments(filteredComments);
+
+    // Cascading notifications deletion where postId matches
+    const users = getLocalUsers();
+    for (const u of users) {
+      const key = `dagar_local_notifications_${u.uid}`;
+      const notifs = JSON.parse(localStorage.getItem(key) || "[]");
+      const filteredNotifs = notifs.filter((n: any) => n.postId !== postId);
+      localStorage.setItem(key, JSON.stringify(filteredNotifs));
+    }
+
+    // Cascading reports deletion
+    const reports = getLocalReports();
+    const filteredReports = reports.filter(r => r.postId !== postId);
+    saveLocalReports(filteredReports);
+
+    window.dispatchEvent(new Event("dagar_chats_db_update"));
+    return;
+  }
+  const path = `posts/${postId}`;
+  try {
+    // 1. Delete parent post document
+    await deleteDoc(doc(db, "posts", postId));
+
+    // 2. Delete all related comments
+    const commentsColRef = collection(db, "posts", postId, "comments");
+    const commentsSnap = await getDocs(commentsColRef);
+    for (const d of commentsSnap.docs) {
+      await deleteDoc(doc(db, "posts", postId, "comments", d.id));
+    }
+
+    // 3. Delete related notifications across all users using collectionGroup
+    const notifsQuery = query(collectionGroup(db, "notifications"), where("postId", "==", postId));
+    const notifsSnap = await getDocs(notifsQuery);
+    for (const d of notifsSnap.docs) {
+      await deleteDoc(d.ref);
+    }
+
+    // 4. Delete related reports
+    const reportsQuery = query(collection(db, "reports"), where("postId", "==", postId));
+    const reportsSnap = await getDocs(reportsQuery);
+    for (const d of reportsSnap.docs) {
+      await deleteDoc(d.ref);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+/**
  * Subscribes to real-time posts feed.
  */
 export function subscribeToFeed(callback: (posts: Post[]) => void) {
@@ -383,7 +446,8 @@ export async function toggleLikePost(postId: string, userId: string, hasLiked: b
               type: "like",
               title: "New Like!",
               message: `@${likerUsername} liked your post.`,
-              read: false
+              read: false,
+              postId: postId
             });
           }
         }
@@ -417,7 +481,8 @@ export async function toggleLikePost(postId: string, userId: string, hasLiked: b
             type: "like",
             title: "New Like!",
             message: `@${likerUsername} liked your post.`,
-            read: false
+            read: false,
+            postId: postId
           });
         }
       }
@@ -453,7 +518,8 @@ async function notifyTagsAndReplies(
           type: "comment",
           title: "New Tag!",
           message: `@${senderProfile.username} tagged you in a comment: "${text.substring(0, 30)}${text.length > 30 ? "..." : ""}"`,
-          read: false
+          read: false,
+          postId: postId
         });
       }
     } catch (err) {
@@ -467,7 +533,8 @@ async function notifyTagsAndReplies(
       type: "comment",
       title: "Comment Reply!",
       message: `@${senderProfile.username} replied to your comment: "${text.substring(0, 30)}${text.length > 30 ? "..." : ""}"`,
-      read: false
+      read: false,
+      postId: postId
     });
     notifiedUserIds.add(replyToCommentOwnerId);
   }
@@ -507,7 +574,8 @@ export async function addComment(postId: string, comment: Omit<Comment, "id" | "
           type: "comment",
           title: "New Comment!",
           message: `@${comment.ownerUsername} commented: "${comment.text.substring(0, 30)}${comment.text.length > 30 ? "..." : ""}"`,
-          read: false
+          read: false,
+          postId: postId
         });
       }
     }
@@ -520,7 +588,7 @@ export async function addComment(postId: string, comment: Omit<Comment, "id" | "
     const commentDocRef = doc(commentsColRef);
     const commentPayload: any = {
       ...comment,
-      ownerPhotoURL: comment.ownerPhotoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${comment.ownerUsername || "default"}`,
+      ownerPhotoURL: comment.ownerPhotoURL || DEFAULT_AVATAR_URL,
       id: commentDocRef.id,
       createdAt: serverTimestamp(),
     };
@@ -553,7 +621,8 @@ export async function addComment(postId: string, comment: Omit<Comment, "id" | "
           type: "comment",
           title: "New Comment!",
           message: `@${comment.ownerUsername} commented: "${comment.text.substring(0, 30)}${comment.text.length > 30 ? "..." : ""}"`,
-          read: false
+          read: false,
+          postId: postId
         });
       }
     }
@@ -919,7 +988,7 @@ export function subscribeToUserChats(uid: string, callback: (chats: Chat[]) => v
               username: "User",
               fullName: "Active Participant",
               email: "",
-              photoURL: `https://api.dicebear.com/7.x/adventurer/svg?seed=${otherUserId}`,
+              photoURL: DEFAULT_AVATAR_URL,
               bio: "",
               createdAt: "",
               isVerified: false
@@ -1383,6 +1452,110 @@ export async function markChatAsSeen(chatId: string, userId: string): Promise<vo
     await updateDoc(chatRef, {
       [`seenBy.${userId}`]: new Date().toISOString()
     });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+/**
+ * Report helper utilities for LocalStorage
+ */
+function getLocalReports(): PostReport[] {
+  return JSON.parse(localStorage.getItem("dagar_local_reports") || "[]");
+}
+
+function saveLocalReports(reports: PostReport[]) {
+  localStorage.setItem("dagar_local_reports", JSON.stringify(reports));
+}
+
+/**
+ * Creates a new post report.
+ */
+export async function createPostReport(
+  report: Omit<PostReport, "id" | "createdAt" | "status">
+): Promise<void> {
+  if (isLocalDemo()) {
+    const reports = getLocalReports();
+    const newReport: PostReport = {
+      ...report,
+      id: "report_" + Math.random().toString(36).substr(2, 9),
+      createdAt: new Date().toISOString(),
+      status: "Pending"
+    };
+    reports.unshift(newReport);
+    saveLocalReports(reports);
+    window.dispatchEvent(new Event("dagar_chats_db_update"));
+    return;
+  }
+
+  const path = "reports";
+  try {
+    const reportsCol = collection(db, "reports");
+    const docRef = doc(reportsCol);
+    const payload: PostReport = {
+      ...report,
+      id: docRef.id,
+      createdAt: serverTimestamp(),
+      status: "Pending"
+    };
+    await setDoc(docRef, payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+/**
+ * Subscribes to realtime post reports.
+ */
+export function subscribeToPostReports(callback: (reports: PostReport[]) => void): () => void {
+  if (isLocalDemo()) {
+    const reports = getLocalReports();
+    callback(reports);
+    const handler = () => {
+      callback(getLocalReports());
+    };
+    window.addEventListener("dagar_chats_db_update", handler);
+    return () => window.removeEventListener("dagar_chats_db_update", handler);
+  }
+
+  const path = "reports";
+  const q = query(collection(db, path), orderBy("createdAt", "desc"));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const reports: PostReport[] = [];
+      snapshot.forEach((doc) => {
+        reports.push(doc.data() as PostReport);
+      });
+      callback(reports);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  );
+}
+
+/**
+ * Updates status of a post report.
+ */
+export async function updatePostReportStatus(
+  reportId: string,
+  status: "Approved" | "Rejected"
+): Promise<void> {
+  if (isLocalDemo()) {
+    const reports = getLocalReports();
+    const idx = reports.findIndex((r) => r.id === reportId);
+    if (idx >= 0) {
+      reports[idx].status = status;
+      saveLocalReports(reports);
+      window.dispatchEvent(new Event("dagar_chats_db_update"));
+    }
+    return;
+  }
+
+  const path = `reports/${reportId}`;
+  try {
+    await updateDoc(doc(db, "reports", reportId), { status });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
