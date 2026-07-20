@@ -255,13 +255,13 @@ export default function PostDetailView() {
               <img
                 src={post.ownerPhotoURL}
                 alt={post.ownerUsername}
-                onClick={() => navigate(`/@${post.ownerUsername}`)}
+                onClick={() => navigate(`/${post.ownerUsername}`)}
                 className="w-10 h-10 rounded-full border border-gray-800 object-cover cursor-pointer hover:opacity-90 transition-all"
                 referrerPolicy="no-referrer"
               />
               <div className="text-left">
                 <div
-                  onClick={() => navigate(`/@${post.ownerUsername}`)}
+                  onClick={() => navigate(`/${post.ownerUsername}`)}
                   className="text-sm font-black text-white hover:text-purple-300 transition-colors cursor-pointer"
                 >
                   <UsernameWithBadge userId={post.ownerId} username={post.ownerUsername} />
@@ -322,17 +322,17 @@ export default function PostDetailView() {
                     <img
                       src={post.ownerPhotoURL}
                       alt={post.ownerUsername}
-                      onClick={() => navigate(`/@${post.ownerUsername}`)}
+                      onClick={() => navigate(`/${post.ownerUsername}`)}
                       className="w-8 h-8 rounded-full border border-gray-800 object-cover cursor-pointer"
                       referrerPolicy="no-referrer"
                     />
                     <div className="text-left flex-1">
                       <p className="text-xs text-gray-300 leading-relaxed">
                         <span
-                          onClick={() => navigate(`/@${post.ownerUsername}`)}
+                          onClick={() => navigate(`/${post.ownerUsername}`)}
                           className="font-bold text-white hover:underline cursor-pointer mr-1.5"
                         >
-                          @{post.ownerUsername}
+                          {post.ownerUsername}
                         </span>
                         {formatCaption(post.caption)}
                       </p>
@@ -353,14 +353,14 @@ export default function PostDetailView() {
                       <img
                         src={comment.ownerPhotoURL}
                         alt={comment.ownerUsername}
-                        onClick={() => navigate(`/@${comment.ownerUsername}`)}
+                        onClick={() => navigate(`/${comment.ownerUsername}`)}
                         className="w-8 h-8 rounded-full border border-gray-800 object-cover cursor-pointer shrink-0"
                         referrerPolicy="no-referrer"
                       />
                       <div className="flex-1 bg-neutral-900/30 p-2.5 rounded-xl border border-gray-900/40 hover:border-gray-800 transition-colors">
                         <div className="flex items-center justify-between">
                           <span
-                            onClick={() => navigate(`/@${comment.ownerUsername}`)}
+                            onClick={() => navigate(`/${comment.ownerUsername}`)}
                             className="text-xs font-bold text-white hover:underline cursor-pointer"
                           >
                             <UsernameWithBadge userId={comment.ownerId} username={comment.ownerUsername} />
@@ -420,7 +420,7 @@ export default function PostDetailView() {
                   likesList.map((liker) => (
                     <div
                       key={liker.uid}
-                      onClick={() => navigate(`/@${liker.username}`)}
+                      onClick={() => navigate(`/${liker.username}`)}
                       className="flex items-center justify-between bg-neutral-900/40 hover:bg-neutral-900 p-2.5 border border-gray-900 hover:border-gray-850 rounded-xl cursor-pointer transition-all"
                     >
                       <div className="flex items-center gap-3">

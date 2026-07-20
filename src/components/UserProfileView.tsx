@@ -425,7 +425,7 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
         </div>
         <h1 className="text-3xl font-black mb-2">User Not Found</h1>
         <p className="text-gray-400 max-w-sm text-xs leading-relaxed mb-6">
-          The profile @{username} could not be resolved in the Mohan Dagar registry database.
+          The profile {username} could not be resolved in the Mohan Dagar registry database.
         </p>
         <button
           onClick={() => navigate("/")}
@@ -464,7 +464,7 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
           <div className="flex-1 text-center md:text-left space-y-4">
             <div className="flex flex-col sm:flex-row items-center gap-4">
               <h2 className="text-2xl font-bold tracking-tight inline-flex items-center">
-                <UsernameWithBadge userId={profile.uid} username={profile.username} badgeClassName="w-5 h-5" />
+                <UsernameWithBadge userId={profile.uid} username={profile.username} badgeClassName="w-5 h-5" showAtPrefix={false} />
               </h2>
 
               {isOwnProfile ? (
@@ -1071,7 +1071,7 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
                     <h4 className="text-sm font-bold text-white inline-flex items-center gap-1">
                       <UsernameWithBadge userId={profile.uid} username={profile.username} badgeClassName="w-4 h-4" />
                     </h4>
-                    <p className="text-xs text-gray-500 mt-0.5">@{profile.username}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{profile.username}</p>
                   </div>
                 </div>
 
@@ -1189,7 +1189,7 @@ const FollowUserItem: React.FC<{
     <div className="flex items-center justify-between py-2 border-b border-neutral-900/50 last:border-b-0">
       <div
         onClick={() => {
-          navigate(`/@${user.username}`);
+          navigate(`/${user.username}`);
           onClose();
         }}
         className="flex items-center gap-3 cursor-pointer group"

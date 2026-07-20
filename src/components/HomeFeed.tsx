@@ -115,7 +115,7 @@ export default function HomeFeed({ onUserProfileClick, onAddStoryClick, onOpenDi
                 myProfile={myProfile}
                 onLike={() => handleLike(post)}
                 onShare={() => handleShareClick(post)}
-                onUserClick={() => navigate(`/@${post.ownerUsername}`)}
+                onUserClick={() => navigate(`/${post.ownerUsername}`)}
                 onMessageClick={onOpenDirectChat}
                 isExpanded={expandedCommentsPostId === post.id}
                 onToggleComments={() => toggleCommentsExpansion(post.id)}
@@ -216,13 +216,13 @@ const PostItem: React.FC<PostItemProps> = ({
           <img
             src={post.ownerPhotoURL}
             alt={post.ownerUsername}
-            onClick={() => navigate(`/@${post.ownerUsername}`)}
+            onClick={() => navigate(`/${post.ownerUsername}`)}
             className="w-8 h-8 rounded-full border border-gray-800 object-cover cursor-pointer hover:opacity-85 transition-opacity"
             referrerPolicy="no-referrer"
           />
           <div className="text-left">
             <div
-              onClick={() => navigate(`/@${post.ownerUsername}`)}
+              onClick={() => navigate(`/${post.ownerUsername}`)}
               className="text-sm font-bold text-white cursor-pointer hover:text-gray-300 transition-all"
             >
               <UsernameWithBadge userId={post.ownerId} username={post.ownerUsername} />
@@ -348,8 +348,8 @@ const PostItem: React.FC<PostItemProps> = ({
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-200 leading-relaxed break-words">
-                          <span
-                            onClick={() => navigate(`/@${comment.ownerUsername}`)}
+                           <span
+                            onClick={() => navigate(`/${comment.ownerUsername}`)}
                             className="font-bold mr-1 text-white cursor-pointer hover:text-gray-300 inline-block"
                           >
                             <UsernameWithBadge userId={comment.ownerId} username={comment.ownerUsername} />

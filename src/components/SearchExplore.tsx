@@ -167,7 +167,7 @@ export default function SearchExplore({ onUserProfileClick }: SearchExploreProps
                 {searchResults.map((user) => (
                   <div
                     key={user.uid}
-                    onClick={() => navigate(`/@${user.username}`)}
+                    onClick={() => navigate(`/${user.username}`)}
                     className="flex items-center gap-3 py-3 px-2 hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
                   >
                     <img

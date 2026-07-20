@@ -464,13 +464,13 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
                 src={activeChat.otherUser?.photoURL || DEFAULT_AVATAR_URL}
                 alt={activeChat.otherUser?.username || "Recipient"}
                 className="w-9 h-9 rounded-full object-cover border border-gray-800 cursor-pointer hover:opacity-85"
-                onClick={() => activeChat.otherUser?.username && navigate(`/@${activeChat.otherUser.username}`)}
+                onClick={() => activeChat.otherUser?.username && navigate(`/${activeChat.otherUser.username}`)}
                 referrerPolicy="no-referrer"
               />
 
               <div className="text-left flex-1">
                 <div
-                  onClick={() => activeChat.otherUser?.username && navigate(`/@${activeChat.otherUser.username}`)}
+                  onClick={() => activeChat.otherUser?.username && navigate(`/${activeChat.otherUser.username}`)}
                   className="text-sm font-bold text-white cursor-pointer hover:text-gray-300 transition-colors inline-block"
                 >
                   <UsernameWithBadge userId={activeChat.otherUser?.uid || ""} username={activeChat.otherUser?.username || "User"} />
@@ -495,7 +495,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
                           src={activeChat.otherUser?.photoURL || DEFAULT_AVATAR_URL}
                           alt="User"
                           className="w-7 h-7 rounded-full object-cover shrink-0 border border-neutral-800 self-end mb-0.5 cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => activeChat.otherUser?.username && navigate(`/@${activeChat.otherUser.username}`)}
+                        onClick={() => activeChat.otherUser?.username && navigate(`/${activeChat.otherUser.username}`)}
                           referrerPolicy="no-referrer"
                         />
                       )}

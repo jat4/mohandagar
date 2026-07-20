@@ -338,7 +338,7 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
                 </div>
                 <div className="flex-1 space-y-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-lg text-white">@{profile?.username}</span>
+                    <span className="font-bold text-lg text-white">{profile?.username}</span>
                     {profile?.isVerified && <VerifiedBadge className="w-4.5 h-4.5" />}
                   </div>
                   <p className="text-xs text-gray-500">{profile?.email}</p>
