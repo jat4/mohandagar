@@ -1561,4 +1561,44 @@ export async function updatePostReportStatus(
   }
 }
 
+/**
+ * Deletes a notification from Firestore or localStorage.
+ */
+export async function deleteNotification(userId: string, notificationId: string): Promise<void> {
+  if (isLocalDemo()) {
+    const key = `dagar_local_notifications_${userId}`;
+    const notifications: AppNotification[] = JSON.parse(localStorage.getItem(key) || "[]");
+    const filtered = notifications.filter(n => n.id !== notificationId);
+    localStorage.setItem(key, JSON.stringify(filtered));
+    window.dispatchEvent(new Event("dagar_chats_db_update"));
+    return;
+  }
+
+  const path = `users/${userId}/notifications/${notificationId}`;
+  try {
+    const docRef = doc(db, "users", userId, "notifications", notificationId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+/**
+ * Checks if a post exists in Firestore or localStorage.
+ */
+export async function checkPostExists(postId: string): Promise<boolean> {
+  if (isLocalDemo()) {
+    const posts = getLocalPosts();
+    return posts.some(p => p.id === postId);
+  }
+  try {
+    const docRef = doc(db, "posts", postId);
+    const snap = await getDoc(docRef);
+    return snap.exists();
+  } catch (err) {
+    console.error("Error checking post existence:", err);
+    return false;
+  }
+}
+
 
