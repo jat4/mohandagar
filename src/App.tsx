@@ -339,7 +339,7 @@ function DashboardLayout() {
       icon: Bell,
       badge: unreadNotificationsCount
     },
-    { to: `/@${profile?.username}`, label: "Profile", icon: User },
+    { to: `/${profile?.username}`, label: "Profile", icon: User },
     { to: "/settings/profile", label: "Settings", icon: Settings }
   ];
 
@@ -363,13 +363,13 @@ function DashboardLayout() {
             {menuItems.map((item) => {
               const Icon = item.icon;
               // Precise path checking for active style
-              const isProfileRoute = item.to.startsWith("/@");
+              const isProfileRoute = profile ? item.to === `/${profile.username}` : false;
               const isSettingsRoute = item.to.startsWith("/settings");
               const isMessagesRoute = item.to.startsWith("/messages");
 
               let isActive = false;
               if (isProfileRoute) {
-                isActive = location.pathname.startsWith("/@");
+                isActive = profile ? location.pathname === `/${profile.username}` : false;
               } else if (isSettingsRoute) {
                 isActive = location.pathname.startsWith("/settings");
               } else if (isMessagesRoute) {
@@ -432,7 +432,7 @@ function DashboardLayout() {
         {/* User Mini profile button */}
         {profile && (
           <div
-            onClick={() => navigate(`/@${profile.username}`)}
+            onClick={() => navigate(`/${profile.username}`)}
             className="flex items-center gap-3 p-3 hover:bg-white/5 rounded-lg cursor-pointer transition-all border border-transparent"
           >
             <img
@@ -442,7 +442,7 @@ function DashboardLayout() {
               referrerPolicy="no-referrer"
             />
             <div className="text-left">
-              <p className="text-xs font-bold text-white truncate max-w-[100px]">@{profile.username}</p>
+              <p className="text-xs font-bold text-white truncate max-w-[100px]">{profile.username}</p>
               <p className="text-[10px] text-gray-500 truncate max-w-[100px]">{profile.fullName}</p>
             </div>
           </div>
@@ -547,12 +547,12 @@ function DashboardLayout() {
       <nav className="md:hidden flex justify-around items-center border-t border-gray-950 bg-black py-2.5 shrink-0 z-30">
         {menuItems.slice(0, 5).map((item) => {
           const Icon = item.icon;
-          const isProfileRoute = item.to.startsWith("/@");
+          const isProfileRoute = profile ? item.to === `/${profile.username}` : false;
           const isMessagesRoute = item.to.startsWith("/messages");
 
           let isActive = false;
           if (isProfileRoute) {
-            isActive = location.pathname.startsWith("/@");
+            isActive = profile ? location.pathname === `/${profile.username}` : false;
           } else if (isMessagesRoute) {
             isActive = location.pathname.startsWith("/messages");
           } else {
