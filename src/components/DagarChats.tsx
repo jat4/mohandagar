@@ -53,6 +53,48 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const chatContainerRef = useRef<HTMLDivElement | null>(null);
 
+  // Listen to visual viewport changes to preserve user scroll position when mobile keyboard toggles
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+
+    let timerId: any = null;
+
+    const handleViewportChange = () => {
+      const container = chatContainerRef.current;
+      if (!container) return;
+
+      // 1. Measure BEFORE height updates (using a generous 100px threshold)
+      const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      const prevScrollTop = container.scrollTop;
+
+      // 2. Schedule restoration after layout settles
+      requestAnimationFrame(() => {
+        if (wasAtBottom) {
+          container.scrollTop = container.scrollHeight - container.clientHeight;
+        } else {
+          container.scrollTop = prevScrollTop;
+        }
+
+        // Secondary backup check for delayed layout adjustments (keyboard transition completion)
+        if (timerId) clearTimeout(timerId);
+        timerId = setTimeout(() => {
+          if (wasAtBottom) {
+            container.scrollTop = container.scrollHeight - container.clientHeight;
+          } else {
+            container.scrollTop = prevScrollTop;
+          }
+        }, 85);
+      });
+    };
+
+    window.visualViewport.addEventListener("resize", handleViewportChange);
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", handleViewportChange);
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [activeChatId]);
+
   const formatMessageTimeIST = (createdAt: any) => {
     if (!createdAt) return "";
     const date = typeof createdAt === "string" ? new Date(createdAt) : createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
