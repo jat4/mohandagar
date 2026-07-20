@@ -44,3 +44,6 @@ export const PROFILE_AVATARS = [
   "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=150&q=80",
   "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&h=150&q=80"
 ];
+
+export const DEFAULT_AVATAR_URL = "https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg";
+
