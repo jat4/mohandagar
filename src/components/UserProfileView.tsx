@@ -40,8 +40,10 @@ import {
   Camera,
   Upload,
   Lock,
-  User
+  User,
+  MoreHorizontal
 } from "lucide-react";
+import PostOptionsMenu from "./PostOptionsMenu";
 
 interface UserProfileViewProps {
   profileId?: string; // Optional target user ID, defaults to self
@@ -80,6 +82,7 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
   const [replyToComment, setReplyToComment] = useState<{ id: string; username: string; ownerId: string } | null>(null);
   const [showFollowsModal, setShowFollowsModal] = useState<{ type: "followers" | "following"; list: string[] } | null>(null);
   const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Followers & Following states
   const [followers, setFollowers] = useState<string[]>([]);
@@ -866,12 +869,20 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
                       <p className="text-white/40 text-[10px]">Active Share</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedPost(null)}
-                    className="p-1.5 hover:bg-white/5 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setIsMenuOpen(true)}
+                      className="p-1.5 hover:bg-white/5 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setSelectedPost(null)}
+                      className="p-1.5 hover:bg-white/5 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Caption + Scrollable Comments area */}
@@ -1013,6 +1024,17 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
           </div>
         )}
       </AnimatePresence>
+
+      {selectedPost && (
+        <PostOptionsMenu
+          post={selectedPost}
+          isOpen={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          onDeleteSuccess={() => {
+            setSelectedPost(null);
+          }}
+        />
+      )}
 
       {/* About This Account Modal */}
       <AnimatePresence>

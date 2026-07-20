@@ -6,7 +6,8 @@ import { subscribeToFeed, toggleLikePost, addComment, subscribeToComments, delet
 import StoriesSection from "./StoriesSection";
 import UsernameWithBadge from "./UsernameWithBadge";
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, MessageCircle, Share2, Compass, AlertCircle, Bookmark, Plus, MessageSquare } from "lucide-react";
+import { Heart, MessageCircle, Share2, Compass, AlertCircle, Bookmark, Plus, MessageSquare, MoreHorizontal } from "lucide-react";
+import PostOptionsMenu from "./PostOptionsMenu";
 
 interface HomeFeedProps {
   onUserProfileClick?: (userId: string) => void;
@@ -153,6 +154,7 @@ const PostItem: React.FC<PostItemProps> = ({
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentInput, setCommentInput] = useState("");
   const [replyToComment, setReplyToComment] = useState<{ id: string; username: string; ownerId: string } | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Sub to comments for this post if expanded
   useEffect(() => {
@@ -229,15 +231,23 @@ const PostItem: React.FC<PostItemProps> = ({
           </div>
         </div>
 
-        {myProfile && post.ownerId !== myProfile.uid && (
+        <div className="flex items-center gap-2">
+          {myProfile && post.ownerId !== myProfile.uid && (
+            <button
+              onClick={() => onMessageClick(post.ownerId)}
+              className="flex items-center gap-1 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Chat
+            </button>
+          )}
           <button
-            onClick={() => onMessageClick(post.ownerId)}
-            className="flex items-center gap-1 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer"
+            onClick={() => setIsMenuOpen(true)}
+            className="p-1.5 hover:bg-white/5 rounded-full text-zinc-400 hover:text-white transition-colors cursor-pointer"
           >
-            <MessageSquare className="w-3.5 h-3.5" />
-            Chat
+            <MoreHorizontal className="w-4 h-4" />
           </button>
-        )}
+        </div>
       </div>
 
       {/* Post Photo content */}
@@ -427,6 +437,12 @@ const PostItem: React.FC<PostItemProps> = ({
           )}
         </AnimatePresence>
       </div>
+
+      <PostOptionsMenu
+        post={post}
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+      />
     </motion.div>
   );
 }

@@ -6,9 +6,11 @@ import {
   toggleUserProfileVerification,
   addNotification,
   subscribeToFeed,
-  deletePost
+  deletePost,
+  subscribeToPostReports,
+  updatePostReportStatus
 } from "../services/dbService";
-import { UserProfile, Post } from "../types";
+import { UserProfile, Post, PostReport } from "../types";
 import { DEFAULT_AVATAR_URL } from "../constants";
 import VerifiedBadge from "./VerifiedBadge";
 import {
@@ -42,6 +44,7 @@ export default function AdminPanel() {
 
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [reports, setReports] = useState<PostReport[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -61,6 +64,14 @@ export default function AdminPanel() {
   useEffect(() => {
     const unsubscribe = subscribeToFeed((loadedPosts) => {
       setPosts(loadedPosts);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Subscribe to all reports for reports moderation
+  useEffect(() => {
+    const unsubscribe = subscribeToPostReports((loadedReports) => {
+      setReports(loadedReports);
     });
     return () => unsubscribe();
   }, []);
@@ -122,6 +133,25 @@ export default function AdminPanel() {
       } catch (err) {
         setMessage({ text: "Failed to delete post.", type: "error" });
       }
+    }
+  };
+
+  const handleResolveReport = async (reportId: string, status: "Approved" | "Rejected") => {
+    setActionLoadingId(reportId);
+    try {
+      await updatePostReportStatus(reportId, status);
+      setMessage({
+        text: `Report ticket resolved as ${status}!`,
+        type: "success"
+      });
+    } catch (err) {
+      console.error(err);
+      setMessage({
+        text: "Failed to update report status. Please try again.",
+        type: "error"
+      });
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -506,31 +536,80 @@ export default function AdminPanel() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-900">
-                    {reportsMock.map((rep) => (
-                      <tr key={rep.id} className="hover:bg-neutral-900/10">
-                        <td className="p-4 font-bold text-white">{rep.id}</td>
-                        <td className="p-4 text-red-400 font-semibold">{rep.target}</td>
-                        <td className="p-4 text-gray-400">{rep.reporter}</td>
-                        <td className="p-4 text-gray-300 italic">"{rep.reason}"</td>
-                        <td className="p-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            rep.status === "pending"
-                              ? "bg-yellow-500/10 border border-yellow-500/20 text-yellow-500"
-                              : "bg-green-500/10 border border-green-500/20 text-green-500"
-                          }`}>
-                            {rep.status}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <button
-                            onClick={() => alert(`Reviewing report log ${rep.id}...`)}
-                            className="text-[10px] font-bold bg-neutral-900 hover:bg-neutral-800 border border-gray-800 text-white px-2 py-1 rounded cursor-pointer"
-                          >
-                            Resolve
-                          </button>
+                    {reports.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-gray-500 italic">
+                          No reports recorded in the database.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      reports.map((rep) => (
+                        <tr key={rep.id} className="hover:bg-neutral-900/10">
+                          <td className="p-4 font-bold text-white tracking-mono">
+                            {rep.id.substring(0, 8)}...
+                          </td>
+                          <td className="p-4 text-red-400 font-semibold text-left">
+                            <div className="flex flex-col gap-1">
+                              <a
+                                href={`/post/${rep.postId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline text-red-400 hover:text-red-300 font-bold"
+                              >
+                                Post ID #{rep.postId.substring(0, 8)}...
+                              </a>
+                              <span className="text-[10px] text-gray-500">
+                                Owner: @{rep.postOwnerUsername}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4 text-gray-400">@{rep.reporterUsername}</td>
+                          <td className="p-4 text-gray-300">
+                            <div className="flex flex-col gap-1 text-left">
+                              <span className="font-bold">"{rep.reason}"</span>
+                              {rep.additionalDetails && (
+                                <span className="text-[10px] text-gray-500 italic max-w-xs block font-normal leading-relaxed whitespace-pre-wrap">
+                                  {rep.additionalDetails}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              rep.status === "Pending"
+                                ? "bg-yellow-500/10 border border-yellow-500/20 text-yellow-500"
+                                : rep.status === "Approved"
+                                ? "bg-green-500/10 border border-green-500/20 text-green-500"
+                                : "bg-red-500/10 border border-red-500/20 text-red-500"
+                            }`}>
+                              {rep.status}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            {rep.status === "Pending" ? (
+                              <div className="flex gap-2">
+                                <button
+                                  disabled={actionLoadingId === rep.id}
+                                  onClick={() => handleResolveReport(rep.id, "Approved")}
+                                  className="text-[10px] font-bold bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded cursor-pointer disabled:opacity-50"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  disabled={actionLoadingId === rep.id}
+                                  onClick={() => handleResolveReport(rep.id, "Rejected")}
+                                  className="text-[10px] font-bold bg-zinc-800 hover:bg-zinc-700 text-red-400 border border-zinc-700 px-2 py-1 rounded cursor-pointer disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-gray-500">None</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

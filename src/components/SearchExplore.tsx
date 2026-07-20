@@ -5,7 +5,8 @@ import { useAuth } from "../context/AuthContext";
 import { searchUsers, subscribeToFeed, toggleLikePost, addComment, subscribeToComments, deleteComment, subscribeToFollowing } from "../services/dbService";
 import UsernameWithBadge from "./UsernameWithBadge";
 import { motion, AnimatePresence } from "motion/react";
-import { Search, Heart, MessageCircle, User, Compass, X } from "lucide-react";
+import { Search, Heart, MessageCircle, User, Compass, X, MoreHorizontal } from "lucide-react";
+import PostOptionsMenu from "./PostOptionsMenu";
 
 interface SearchExploreProps {
   onUserProfileClick?: (userId: string) => void;
@@ -25,6 +26,7 @@ export default function SearchExplore({ onUserProfileClick }: SearchExploreProps
   const [commentInput, setCommentInput] = useState("");
   const [replyToComment, setReplyToComment] = useState<{ id: string; username: string; ownerId: string } | null>(null);
   const [followingIds, setFollowingIds] = useState<string[]>([]);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!myProfile?.uid) return;
@@ -269,12 +271,20 @@ export default function SearchExplore({ onUserProfileClick }: SearchExploreProps
                       <p className="text-white/40 text-[10px]">Active Share</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedPost(null)}
-                    className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setIsMenuOpen(true)}
+                      className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setSelectedPost(null)}
+                      className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Caption & comments lists */}
@@ -413,6 +423,17 @@ export default function SearchExplore({ onUserProfileClick }: SearchExploreProps
           </div>
         )}
       </AnimatePresence>
+
+      {selectedPost && (
+        <PostOptionsMenu
+          post={selectedPost}
+          isOpen={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          onDeleteSuccess={() => {
+            setSelectedPost(null);
+          }}
+        />
+      )}
     </div>
   );
 }

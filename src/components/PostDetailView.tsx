@@ -26,8 +26,10 @@ import {
   UserPlus,
   UserMinus,
   Sparkles,
-  Smile
+  Smile,
+  MoreHorizontal
 } from "lucide-react";
+import PostOptionsMenu from "./PostOptionsMenu";
 
 export default function PostDetailView() {
   const { postId } = useParams<{ postId: string }>();
@@ -40,6 +42,7 @@ export default function PostDetailView() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentInput, setCommentInput] = useState("");
   const [replyToComment, setReplyToComment] = useState<{ id: string; username: string; ownerId: string } | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   // Likes list sub-view
   const [likesList, setLikesList] = useState<UserProfile[]>([]);
@@ -267,14 +270,22 @@ export default function PostDetailView() {
               </div>
             </div>
 
-            {myProfile && post.ownerId !== myProfile.uid && (
+            <div className="flex items-center gap-2">
+              {myProfile && post.ownerId !== myProfile.uid && (
+                <button
+                  onClick={() => navigate("/messages", { state: { directUserId: post.ownerId } })}
+                  className="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg transition-colors cursor-pointer text-white"
+                >
+                  Message
+                </button>
+              )}
               <button
-                onClick={() => navigate("/messages", { state: { directUserId: post.ownerId } })}
-                className="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg transition-colors cursor-pointer text-white"
+                onClick={() => setIsMenuOpen(true)}
+                className="p-2 hover:bg-white/5 rounded-full text-zinc-400 hover:text-white transition-colors cursor-pointer"
               >
-                Message
+                <MoreHorizontal className="w-5 h-5" />
               </button>
-            )}
+            </div>
           </div>
 
           {/* Section B: Custom Tab Selector Header */}
@@ -507,6 +518,13 @@ export default function PostDetailView() {
           </div>
         </div>
       </div>
+
+      <PostOptionsMenu
+        post={post}
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onDeleteSuccess={() => navigate("/")}
+      />
     </div>
   );
 }
