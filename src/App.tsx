@@ -239,6 +239,40 @@ function DashboardLayout() {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
+  // Monitor visual viewport height to stay stable with mobile keyboards
+  const [viewportHeight, setViewportHeight] = useState<number>(typeof window !== "undefined" ? window.innerHeight : 800);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+
+    const handleResize = () => {
+      setViewportHeight(window.visualViewport.height);
+      window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+    };
+
+    window.visualViewport.addEventListener("resize", handleResize);
+    window.visualViewport.addEventListener("scroll", handleResize);
+
+    const preventScroll = () => {
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+    window.addEventListener("scroll", preventScroll, { passive: true });
+
+    handleResize();
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", handleResize);
+      window.visualViewport?.removeEventListener("scroll", handleResize);
+      window.removeEventListener("scroll", preventScroll);
+    };
+  }, []);
+
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+
   // Sync Notifications unread count
   useEffect(() => {
     if (!profile?.uid) return;
@@ -344,7 +378,10 @@ function DashboardLayout() {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black text-white flex flex-col md:flex-row select-none overflow-hidden pt-1">
+    <div
+      style={isMobile ? { height: `${viewportHeight}px` } : { height: "100dvh" }}
+      className="fixed inset-x-0 top-0 bg-black text-white flex flex-col md:flex-row select-none overflow-hidden pt-1"
+    >
       {/* LEFT NAVIGATION SIDEBAR (Desktop only) */}
       <aside className="hidden md:flex flex-col w-64 border-r border-gray-900 bg-black px-4 py-8 justify-between shrink-0 select-none">
         <div className="space-y-8">
