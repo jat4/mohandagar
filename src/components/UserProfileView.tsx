@@ -52,7 +52,8 @@ interface UserProfileViewProps {
 }
 
 export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectChat, onOpenSettings, onUserProfileClick }: UserProfileViewProps) {
-  const { username } = useParams<{ username?: string }>();
+  const { username: rawUsername } = useParams<{ username?: string }>();
+  const username = rawUsername?.startsWith("@") ? rawUsername.slice(1) : rawUsername;
   const navigate = useNavigate();
   const { profile: myProfile, logOut, refreshProfile } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
