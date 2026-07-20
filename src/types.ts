@@ -23,6 +23,20 @@ export interface AppNotification {
   read: boolean;
   createdAt: Timestamp | Date | any;
   senderId?: string;
+  postId?: string;
+}
+
+export interface PostReport {
+  id: string;
+  postId: string;
+  postOwnerId: string;
+  postOwnerUsername: string;
+  reporterId: string;
+  reporterUsername: string;
+  reason: string;
+  additionalDetails?: string;
+  createdAt: Timestamp | Date | any;
+  status: "Pending" | "Approved" | "Rejected";
 }
 
 export interface Post {
@@ -36,6 +50,7 @@ export interface Post {
   likesCount: number;
   commentsCount: number;
   createdAt: Timestamp | Date | any;
+  visibility?: "public" | "private" | "followers";
 }
 
 export interface Comment {
@@ -68,6 +83,7 @@ export interface Chat {
   updatedAt: Timestamp | Date | any;
   lastSenderId?: string;
   seenBy?: Record<string, any>;
+  deletedAt?: Record<string, string>; // Maps userId -> ISOString timestamp of when the chat was cleared/deleted by them
   // Dynamic fields parsed for display
   otherUser?: UserProfile;
 }
