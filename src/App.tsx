@@ -469,10 +469,10 @@ function DashboardLayout() {
             {/* Admin Console Gate */}
             {profile?.username === "admin" && (
               <NavLink
-                to="/admin"
+                to="/admin-panel"
                 className={({ isActive }) =>
                   `w-full flex items-center gap-3.5 px-4 py-3 text-sm font-semibold rounded-lg transition-all cursor-pointer border border-red-500/15 ${
-                    isActive || location.pathname.startsWith("/admin")
+                    isActive || location.pathname.startsWith("/admin-panel")
                       ? "bg-red-500/10 text-red-300 border-red-500/25"
                       : "text-red-400 hover:bg-red-500/5 hover:text-red-300"
                   }`
@@ -576,8 +576,8 @@ function DashboardLayout() {
             <Route path="messages/:conversationId" element={<DagarChats />} />
             <Route path="settings" element={<Navigate to="/settings/profile" replace />} />
             <Route path="settings/:tab" element={<SettingsView />} />
-            <Route path="admin" element={<Navigate to="/admin/users" replace />} />
-            <Route path="admin/:section" element={<AdminPanel />} />
+            <Route path="admin-panel" element={<Navigate to="/admin-panel/users" replace />} />
+            <Route path="admin-panel/:section" element={<AdminPanel />} />
             <Route path="post/:postId" element={<PostDetailView />} />
             <Route path="post/:postId/comments" element={<PostDetailView />} />
             <Route path="post/:postId/likes" element={<PostDetailView />} />
@@ -645,7 +645,7 @@ function DashboardLayout() {
         })}
         {profile?.username === "admin" && (
           <NavLink
-            to="/admin"
+            to="/admin-panel"
             className={({ isActive }) =>
               `p-2 transition-colors cursor-pointer ${isActive ? "text-red-400" : "text-gray-500"}`
             }
