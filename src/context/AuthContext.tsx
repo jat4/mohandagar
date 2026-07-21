@@ -5,12 +5,15 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail
 } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db, googleProvider, isLocalDemo, setLocalDemo } from "../firebase";
 import { getUserProfile, createUserProfile, checkUsernameExists } from "../services/dbService";
 import { UserProfile } from "../types";
+import { DEFAULT_AVATAR_URL } from "../constants";
 
 interface AuthContextType {
   user: User | null;
@@ -26,6 +29,9 @@ interface AuthContextType {
   logOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   switchToLocalDemo: () => void;
+  sendVerificationEmail: () => Promise<void>;
+  sendResetEmail: (email: string) => Promise<void>;
+  resendVerificationEmailByEmail: (emailOrUsername: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -89,6 +95,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let profileUnsubscribe: (() => void) | null = null;
 
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        if (currentUser && !currentUser.emailVerified) {
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          await signOut(auth);
+          return;
+        }
+
         setUser(currentUser);
         if (profileUnsubscribe) {
           profileUnsubscribe();
@@ -162,11 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const mockUid = "local_usr_" + Math.random().toString(36).substr(2, 9);
-      const defaultAvatar = gender === "female"
-        ? `https://api.dicebear.com/7.x/adventurer/svg?seed=Lily_${cleanUsername}`
-        : gender === "other"
-        ? `https://api.dicebear.com/7.x/adventurer/svg?seed=Aneka_${cleanUsername}`
-        : `https://api.dicebear.com/7.x/adventurer/svg?seed=Oliver_${cleanUsername}`;
+      const defaultAvatar = DEFAULT_AVATAR_URL;
 
       const mockUser = {
         uid: mockUid,
@@ -218,25 +228,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const newUser = userCredential.user;
 
-      const defaultAvatar = gender === "female"
-        ? `https://api.dicebear.com/7.x/adventurer/svg?seed=Lily_${cleanUsername}`
-        : gender === "other"
-        ? `https://api.dicebear.com/7.x/adventurer/svg?seed=Aneka_${cleanUsername}`
-        : `https://api.dicebear.com/7.x/adventurer/svg?seed=Oliver_${cleanUsername}`;
-
-      // Create the Firestore User Profile
-      await createUserProfile(newUser.uid, {
+      // Save pending profile details in Firestore 'pending_users' collection and localStorage
+      const pendingProfile = {
         uid: newUser.uid,
         username: cleanUsername,
         fullName: fullName.trim(),
         email: email,
-        photoURL: defaultAvatar,
-        gender: gender || "male"
-      });
+        photoURL: DEFAULT_AVATAR_URL,
+        gender: gender || "male",
+        createdAt: new Date().toISOString()
+      };
 
-      // Retrieve and set the profile
-      const p = await getUserProfile(newUser.uid);
-      setProfile(p);
+      // Write to 'pending_users' in Firestore
+      await setDoc(doc(db, "pending_users", email.toLowerCase()), pendingProfile);
+
+      // Save to localStorage as fallback
+      localStorage.setItem(`pending_profile_${email.toLowerCase()}`, JSON.stringify(pendingProfile));
+
+      // Send custom-domain action verification email
+      try {
+        await sendEmailVerification(newUser, {
+          url: `https://mohandagar.in/auth?email=${encodeURIComponent(email)}&username=${encodeURIComponent(cleanUsername)}&fullName=${encodeURIComponent(fullName.trim())}&gender=${encodeURIComponent(gender || 'male')}&uid=${encodeURIComponent(newUser.uid)}`
+        });
+      } catch (verificationError) {
+        console.error("Failed to send verification email upon signup:", verificationError);
+      }
+
+      // Sign out immediately so they cannot access the app before verification
+      await signOut(auth);
     } catch (error: any) {
       setLoading(false);
       throw error;
@@ -249,8 +268,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const users = JSON.parse(localStorage.getItem("dagar_local_users") || "[]");
       const queryStr = usernameOrEmail.trim().toLowerCase();
       const found = users.find((u: any) => 
-        u.email.toLowerCase() === queryStr || 
-        u.username.toLowerCase() === queryStr.replace(/^@/, "")
+          u.email.toLowerCase() === queryStr || 
+          u.username.toLowerCase() === queryStr.replace(/^@/, "")
       );
       
       if (!found) {
@@ -298,7 +317,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         targetEmail = resolvedProfile.email;
       }
 
-      await signInWithEmailAndPassword(auth, targetEmail, password);
+      const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
+      const newUser = userCredential.user;
+
+      if (!newUser.emailVerified) {
+        // Automatically resend verification email
+        try {
+          await sendEmailVerification(newUser, {
+            url: `https://mohandagar.in/auth?email=${encodeURIComponent(targetEmail)}`
+          });
+        } catch (resendError) {
+          console.error("Failed to resend verification email upon unverified login:", resendError);
+        }
+        await signOut(auth);
+        throw new Error("Your email address is not verified yet. A new verification link has been sent to your email. Please verify before logging in.");
+      }
     } catch (error: any) {
       setLoading(false);
       throw error;
@@ -378,13 +411,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         username: cleanUsername,
         fullName: fullName.trim() || targetUser.displayName || "Mohan Dagar User",
         email: targetUser.email || "",
-        photoURL: targetUser.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${cleanUsername}`,
+        photoURL: targetUser.photoURL || DEFAULT_AVATAR_URL,
       });
 
       const mockUser = {
         ...targetUser,
         displayName: fullName.trim() || targetUser.displayName || "Mohan Dagar User",
-        photoURL: targetUser.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${cleanUsername}`,
+        photoURL: targetUser.photoURL || DEFAULT_AVATAR_URL,
       };
 
       if (isLocalDemoMode) {
@@ -430,6 +463,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const sendVerificationEmail = async () => {
+    if (isLocalDemoMode) return;
+    if (!auth.currentUser) throw new Error("No user session found to verify.");
+    await sendEmailVerification(auth.currentUser, {
+      url: "https://mohandagar.in/auth"
+    });
+  };
+
+  const sendResetEmail = async (emailOrUsername: string) => {
+    if (isLocalDemoMode) return;
+    let targetEmail = emailOrUsername.trim();
+
+    try {
+      if (!targetEmail.includes("@")) {
+        const { getUserProfileByUsername } = await import("../services/dbService");
+        const resolvedProfile = await getUserProfileByUsername(targetEmail);
+        if (resolvedProfile) {
+          targetEmail = resolvedProfile.email;
+        } else {
+          // If no user found by username, return silently to not reveal non-existence
+          return;
+        }
+      }
+
+      await sendPasswordResetEmail(auth, targetEmail, {
+        url: "https://mohandagar.in/auth"
+      });
+    } catch (error: any) {
+      // Ignore firebase user-not-found errors to prevent revealing account existence
+      const ignoreErrors = ["auth/user-not-found", "user-not-found"];
+      if (ignoreErrors.includes(error.code) || ignoreErrors.includes(error.message)) {
+        return;
+      }
+      throw error;
+    }
+  };
+
+  const resendVerificationEmailByEmail = async (emailOrUsername: string) => {
+    if (isLocalDemoMode) return;
+    // We explain that trying to log in automatically handles verification email dispatching securely
+    throw new Error("Please enter your credentials and click Log In. If your email is unverified, a verification link will be sent to your inbox automatically!");
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -445,7 +521,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         completeGoogleSignUp,
         logOut,
         refreshProfile,
-        switchToLocalDemo
+        switchToLocalDemo,
+        sendVerificationEmail,
+        sendResetEmail,
+        resendVerificationEmailByEmail
       }}
     >
       {children}
