@@ -57,7 +57,7 @@ interface RouteMetaProps {
 
 function RouteMeta({ title, description }: RouteMetaProps) {
   useEffect(() => {
-    document.title = `${title} • Mohan Dagar`;
+    document.title = `${title} • DagarChat`;
 
     let metaDesc = document.querySelector('meta[name="description"]');
     if (!metaDesc) {
@@ -65,7 +65,7 @@ function RouteMeta({ title, description }: RouteMetaProps) {
       metaDesc.setAttribute("name", "description");
       document.head.appendChild(metaDesc);
     }
-    metaDesc.setAttribute("content", description || "Experience Mohan Dagar - The premium social network engine.");
+    metaDesc.setAttribute("content", description || "Experience DagarChat - The premium social network engine.");
 
     // Open Graph
     let ogTitle = document.querySelector('meta[property="og:title"]');
@@ -74,7 +74,7 @@ function RouteMeta({ title, description }: RouteMetaProps) {
       ogTitle.setAttribute("property", "og:title");
       document.head.appendChild(ogTitle);
     }
-    ogTitle.setAttribute("content", `${title} • Mohan Dagar`);
+    ogTitle.setAttribute("content", `${title} • DagarChat`);
 
     let ogDesc = document.querySelector('meta[property="og:description"]');
     if (!ogDesc) {
@@ -82,7 +82,7 @@ function RouteMeta({ title, description }: RouteMetaProps) {
       ogDesc.setAttribute("property", "og:description");
       document.head.appendChild(ogDesc);
     }
-    ogDesc.setAttribute("content", description || "Experience Mohan Dagar - The premium social network engine.");
+    ogDesc.setAttribute("content", description || "Experience DagarChat - The premium social network engine.");
   }, [title, description]);
 
   return null;
@@ -416,7 +416,7 @@ function DashboardLayout() {
               onClick={() => navigate("/")}
               className="text-2xl font-black tracking-tight italic text-transparent bg-clip-text bg-gradient-to-r from-white via-neutral-100 to-gray-400 cursor-pointer"
             >
-              Mohan Dagar
+              DagarChat
             </h1>
           </div>
 
@@ -526,7 +526,7 @@ function DashboardLayout() {
             onClick={() => navigate("/")}
             className="font-sans font-bold text-xl tracking-tight italic text-white cursor-pointer"
           >
-            Mohan Dagar
+            DagarChat
           </span>
         </div>
 
@@ -722,10 +722,10 @@ function AboutPage() {
       <div className="max-w-2xl mx-auto space-y-6">
         <h1 className="text-3xl font-black flex items-center gap-2 text-white">
           <Info className="w-8 h-8 text-purple-400" />
-          About Mohan Dagar
+          About DagarChat
         </h1>
         <p className="text-xs text-gray-400 leading-relaxed">
-          Mohan Dagar is a boutique, next-generation social medium platform built for visual exploration and conversational intimacy. Our server blends ultra-fast reactive UI elements, immersive full-screen media assets, and real-time private threads.
+          DagarChat is a boutique, next-generation social medium platform built for visual exploration and conversational intimacy. Our server blends ultra-fast reactive UI elements, immersive full-screen media assets, and real-time private threads.
         </p>
         <p className="text-xs text-gray-400 leading-relaxed">
           Designed and engineered using pristine Tailwind typography guidelines, we completely bypass typical cluttered feeds to provide an eye-safe, zero-distraction sanctuary where users can enjoy sharing experiences.
@@ -748,7 +748,7 @@ function TermsPage() {
           Terms of Service
         </h1>
         <p className="text-xs text-gray-400 leading-relaxed">
-          By registering an account on Mohan Dagar, you agree to respect our community guidelines. Users are solely responsible for all images, captions, and comments posted under their verified handle.
+          By registering an account on DagarChat, you agree to respect our community guidelines. Users are solely responsible for all images, captions, and comments posted under their verified handle.
         </p>
         <p className="text-xs text-gray-400 leading-relaxed">
           We strictly prohibit scam activity, spam links, copyright violation, and harassing language inside private threads. Accounts violating these instructions are subject to administrative suspension or permanent deletion by the superuser console.
@@ -821,7 +821,7 @@ function NotFoundView() {
       </div>
       <h1 className="text-4xl font-black tracking-tight mb-2">Route Lost (404)</h1>
       <p className="text-gray-400 max-w-sm text-xs leading-relaxed mb-8">
-        The coordinate you requested does not map to any active modules in the Mohan Dagar ecosystem.
+        The coordinate you requested does not map to any active modules in the DagarChat ecosystem.
       </p>
       <button
         onClick={() => navigate("/")}

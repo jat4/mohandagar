@@ -157,8 +157,8 @@ export async function getUserProfileByUsername(username: string): Promise<UserPr
  */
 export async function createUserProfile(uid: string, profile: Partial<UserProfile>): Promise<void> {
   const cleanUsername = profile.username?.trim().toLowerCase() || "";
-  const cleanFullName = profile.fullName?.trim() || "Mohan Dagar User";
-  const bioValue = profile.bio || "Hello! I am on Mohan Dagar.";
+  const cleanFullName = profile.fullName?.trim() || "DagarChat User";
+  const bioValue = profile.bio || "Hello! I am on DagarChat.";
   const photoUrlValue = profile.photoURL || DEFAULT_AVATAR_URL;
 
   if (isLocalDemo()) {

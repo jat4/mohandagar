@@ -54,7 +54,7 @@ export default function PostOptionsMenu({ post, isOpen, onClose, onDeleteSuccess
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `@${post.ownerUsername}'s Post on Mohan Dagar`,
+          title: `@${post.ownerUsername}'s Post on DagarChat`,
           text: post.caption || "Check out this post!",
           url: postUrl
         });
@@ -312,7 +312,7 @@ export default function PostOptionsMenu({ post, isOpen, onClose, onDeleteSuccess
               </div>
               <h3 className="text-base font-bold text-white">Thank You!</h3>
               <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">
-                Your report has been securely saved and sent to the Admin Dashboard. An administrator will manually review this post. We appreciate your help in keeping Mohan Dagar safe!
+                Your report has been securely saved and sent to the Admin Dashboard. An administrator will manually review this post. We appreciate your help in keeping DagarChat safe!
               </p>
               <button
                 onClick={onClose}

@@ -141,7 +141,7 @@ export default function SearchExplore({ onUserProfileClick }: SearchExploreProps
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input
             type="text"
-            placeholder="Search profiles on Mohan Dagar by @username or name..."
+            placeholder="Search profiles on DagarChat by @username or name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-neutral-900 border border-gray-800 rounded-lg pl-11 pr-4 py-3.5 text-sm text-white focus:outline-none focus:border-white transition-colors"

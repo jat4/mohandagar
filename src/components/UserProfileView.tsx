@@ -426,7 +426,7 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
         </div>
         <h1 className="text-3xl font-black mb-2">User Not Found</h1>
         <p className="text-gray-400 max-w-sm text-xs leading-relaxed mb-6">
-          The profile {username} could not be resolved in the Mohan Dagar registry database.
+          The profile {username} could not be resolved in the DagarChat registry database.
         </p>
         <button
           onClick={() => navigate("/")}
@@ -1120,7 +1120,7 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
                 </div>
 
                 <p className="text-xs text-gray-400 leading-relaxed text-center pb-2 border-b border-gray-900">
-                  To help keep our community authentic, we show information about accounts on Mohan Dagar.
+                  To help keep our community authentic, we show information about accounts on DagarChat.
                 </p>
 
                 {/* Details list */}

@@ -136,7 +136,7 @@ export default function SignupPage() {
             <Sparkles className="h-8 w-8 text-white" />
           </motion.div>
           <h1 className="text-4xl font-extrabold tracking-tight text-white font-sans">
-            Mohan Dagar
+            DagarChat
           </h1>
           <p className="text-gray-400 text-sm mt-2">
             {usernameNeeded ? "Complete your profile to get started" : "Create your unique path today"}

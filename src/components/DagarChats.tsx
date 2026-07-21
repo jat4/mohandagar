@@ -322,7 +322,7 @@ export default function DagarChats({ initialTargetUserId, onUserProfileClick }: 
         <div className="p-4 border-b border-gray-900 bg-black space-y-3">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-white" />
-            <h1 className="text-lg font-bold tracking-tight">Mohan Dagar Direct</h1>
+            <h1 className="text-lg font-bold tracking-tight">DagarChat Direct</h1>
           </div>
 
           <div className="relative">

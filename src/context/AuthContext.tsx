@@ -409,14 +409,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await createUserProfile(targetUser.uid, {
         uid: targetUser.uid,
         username: cleanUsername,
-        fullName: fullName.trim() || targetUser.displayName || "Mohan Dagar User",
+        fullName: fullName.trim() || targetUser.displayName || "DagarChat User",
         email: targetUser.email || "",
         photoURL: targetUser.photoURL || DEFAULT_AVATAR_URL,
       });
 
       const mockUser = {
         ...targetUser,
-        displayName: fullName.trim() || targetUser.displayName || "Mohan Dagar User",
+        displayName: fullName.trim() || targetUser.displayName || "DagarChat User",
         photoURL: targetUser.photoURL || DEFAULT_AVATAR_URL,
       };
 

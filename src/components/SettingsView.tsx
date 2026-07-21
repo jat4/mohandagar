@@ -467,7 +467,7 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
                     className="w-full bg-neutral-905 border border-gray-800 rounded-lg p-4 text-sm text-white focus:outline-none focus:border-blue-500 transition-all resize-none"
-                    placeholder="Tell other Mohan Dagar members about yourself..."
+                    placeholder="Tell other DagarChat members about yourself..."
                     maxLength={300}
                   />
                   <div className="text-right text-[10px] text-gray-500">
@@ -807,7 +807,7 @@ export default function SettingsView({ onBackToFeed }: SettingsViewProps) {
                 {/* Brand info */}
                 <div className="bg-neutral-950 p-6 border border-gray-900 rounded-xl text-center space-y-4">
                   <h2 className="text-3xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-white via-neutral-200 to-gray-500">
-                    Mohan Dagar
+                    DagarChat
                   </h2>
                   <p className="text-xs text-gray-400 leading-relaxed max-w-md mx-auto">
                     A premium social sharing platform for high-quality visual messaging, instant group chat channels, live stories, and real-time push alerts. Build your circle with utmost trust.

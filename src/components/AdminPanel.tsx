@@ -220,7 +220,7 @@ export default function AdminPanel() {
             </div>
             <div className="text-left">
               <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-                Mohan Dagar Admin Console{" "}
+                DagarChat Admin Console{" "}
                 <span className="text-[10px] bg-red-500 text-white font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
                   Superuser
                 </span>
