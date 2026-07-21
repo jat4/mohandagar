@@ -10,7 +10,10 @@ import {
   NavLink
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import AuthScreen from "./components/AuthScreen";
+import LoginPage from "./components/LoginPage";
+import SignupPage from "./components/SignupPage";
+import ForgotPasswordPage from "./components/ForgotPasswordPage";
+import AuthActionHandler from "./components/AuthActionHandler";
 import HomeFeed from "./components/HomeFeed";
 import SearchExplore from "./components/SearchExplore";
 import CreatePost from "./components/CreatePost";
@@ -40,7 +43,8 @@ import {
   HelpCircle,
   Info,
   ShieldCheck,
-  FileText
+  FileText,
+  Mail
 } from "lucide-react";
 
 // ==========================================
@@ -208,13 +212,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (usernameNeeded) {
-    return <Navigate to="/register" state={{ from: location }} replace />;
+    return <Navigate to="/signup" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;
 }
 
-function AuthRoute({ children, isSignUp = false }: { children?: React.ReactNode; isSignUp?: boolean }) {
+function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, profile, usernameNeeded } = useAuth();
   const location = useLocation();
 
@@ -223,15 +227,17 @@ function AuthRoute({ children, isSignUp = false }: { children?: React.ReactNode;
     return <Navigate to={fromPath} replace />;
   }
 
-  return <AuthScreen initialIsSignUp={isSignUp} />;
+  return <>{children}</>;
 }
 
 // ==========================================
 // 5. MAIN ROUTED DASHBOARD LAYOUT
 // ==========================================
 function DashboardLayout() {
-  const { profile, isLocalDemoMode } = useAuth();
+  const { user, profile, isLocalDemoMode, sendVerificationEmail } = useAuth();
   const [dismissBanner, setDismissBanner] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationError, setVerificationError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -549,6 +555,41 @@ function DashboardLayout() {
 
       {/* CORE CONTENT ROUTER OUTLET */}
       <main className="flex-1 flex flex-col overflow-hidden bg-black">
+        {!isLocalDemoMode && user && !user.emailVerified && !dismissBanner && (
+          <div className="bg-neutral-900 border-b border-gray-800 text-xs px-4 py-2.5 flex items-center justify-between shrink-0 text-left">
+            <div className="flex-1 flex flex-wrap items-center gap-2">
+              <Mail className="w-4 h-4 text-white shrink-0" />
+              <span className="text-gray-300">
+                Your email address (<strong className="text-white">{user.email}</strong>) is not verified. Please verify your email to access all platform features.
+              </span>
+              <button
+                disabled={verificationSent}
+                onClick={async () => {
+                  try {
+                    await sendVerificationEmail();
+                    setVerificationSent(true);
+                    setVerificationError("");
+                  } catch (err: any) {
+                    setVerificationError(err.message || "Failed to send email.");
+                  }
+                }}
+                className="px-2.5 py-1 bg-white hover:bg-neutral-200 text-black font-bold text-[10px] rounded transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {verificationSent ? "Email Sent ✓" : "Resend Verification Email"}
+              </button>
+              {verificationError && (
+                <span className="text-red-400 font-semibold">{verificationError}</span>
+              )}
+            </div>
+            <button
+              onClick={() => setDismissBanner(true)}
+              className="text-gray-500 hover:text-white px-2 cursor-pointer font-bold text-sm"
+              aria-label="Dismiss banner"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {isLocalDemoMode && !dismissBanner && (
           <div className="bg-neutral-900 border-b border-gray-800 text-xs px-4 py-2.5 flex items-center justify-between shrink-0 text-left">
             <div className="flex items-center gap-2">
@@ -801,8 +842,11 @@ function MainApp() {
       <OfflineDetector />
       <Routes>
         {/* Auth routes */}
-        <Route path="/login" element={<AuthRoute isSignUp={false} />} />
-        <Route path="/register" element={<AuthRoute isSignUp={true} />} />
+        <Route path="/auth" element={<AuthActionHandler />} />
+        <Route path="/reset-password" element={<AuthActionHandler />} />
+        <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+        <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
 
         {/* Protected Dashboard Layout and children */}
         <Route
