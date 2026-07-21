@@ -843,6 +843,7 @@ function MainApp() {
       <Routes>
         {/* Auth routes */}
         <Route path="/auth" element={<AuthActionHandler />} />
+        <Route path="/__/auth/action" element={<AuthActionHandler />} />
         <Route path="/reset-password" element={<AuthActionHandler />} />
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
         <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
