@@ -38,6 +38,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+let isSigningUp = false;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -98,6 +100,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         if (currentUser && !currentUser.emailVerified) {
+          if (isSigningUp) {
+            return;
+          }
           setUser(null);
           setProfile(null);
           setLoading(false);
@@ -219,6 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setLoading(true);
+    isSigningUp = true;
     try {
       const cleanUsername = username.trim().toLowerCase();
       const exists = await checkUsernameExists(cleanUsername);
@@ -261,8 +267,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Sign out immediately so they cannot access the app before verification
       await signOut(auth);
     } catch (error: any) {
-      setLoading(false);
       throw error;
+    } finally {
+      isSigningUp = false;
+      setLoading(false);
     }
   };
 
