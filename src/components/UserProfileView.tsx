@@ -41,7 +41,8 @@ import {
   Upload,
   Lock,
   User,
-  MoreHorizontal
+  MoreHorizontal,
+  ChevronLeft
 } from "lucide-react";
 import PostOptionsMenu from "./PostOptionsMenu";
 
@@ -447,6 +448,45 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
 
   return (
     <div className="flex-1 bg-black text-white overflow-y-auto pb-20 select-none">
+      {/* Top Header Navigation Bar */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-900 sticky top-0 bg-black/90 backdrop-blur-md z-10 shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              if (onBackToFeed) {
+                onBackToFeed();
+              } else {
+                navigate(-1);
+              }
+            }}
+            className="p-1.5 hover:bg-neutral-900 rounded-lg text-gray-400 hover:text-white transition-colors cursor-pointer"
+            title="Back"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <span className="font-extrabold text-sm tracking-tight text-white flex items-center gap-1">
+            <UsernameWithBadge userId={profile.uid} username={profile.username} badgeClassName="w-4 h-4" showAtPrefix={true} />
+          </span>
+        </div>
+
+        {/* Top Right Corner - Settings Button (Only for own profile) */}
+        {isOwnProfile && (
+          <button
+            onClick={() => {
+              if (onOpenSettings) {
+                onOpenSettings();
+              } else {
+                navigate("/settings/profile");
+              }
+            }}
+            className="p-2 text-gray-400 hover:text-white hover:bg-neutral-900 rounded-lg transition-colors cursor-pointer"
+            title="Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
       {/* Profile Header Block */}
       <div className="max-w-4xl mx-auto px-4 py-8 border-b border-gray-900">
         <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12">
@@ -482,15 +522,19 @@ export default function UserProfileView({ profileId, onBackToFeed, onOpenDirectC
                     <Edit3 className="w-3.5 h-3.5 text-white" />
                     Edit Profile
                   </button>
-                  {onOpenSettings && (
-                    <button
-                      onClick={onOpenSettings}
-                      className="p-2 text-gray-400 hover:text-white bg-neutral-900 hover:bg-neutral-850 border border-gray-800 rounded-lg transition-colors cursor-pointer"
-                      title="Settings"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      if (onOpenSettings) {
+                        onOpenSettings();
+                      } else {
+                        navigate("/settings/profile");
+                      }
+                    }}
+                    className="p-2 text-gray-400 hover:text-white bg-neutral-900 hover:bg-neutral-850 border border-gray-800 rounded-lg transition-colors cursor-pointer"
+                    title="Settings"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     onClick={() => setIsAboutOpen(true)}
                     className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-neutral-900 hover:bg-neutral-850 border border-gray-800 rounded-lg text-gray-300 transition-colors cursor-pointer"

@@ -281,7 +281,7 @@ export default function AdminPanel() {
           return (
             <button
               key={tab.id}
-              onClick={() => navigate(`/admin/${tab.id}`)}
+              onClick={() => navigate(`/admin-panel/${tab.id}`)}
               className={`py-3.5 px-4 font-bold text-xs uppercase tracking-wider border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 isActive
                   ? "border-red-500 text-red-500"
