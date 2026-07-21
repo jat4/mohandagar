@@ -29,6 +29,8 @@ export default function AuthActionHandler() {
   const mode = searchParams.get("mode");
   const oobCode = searchParams.get("oobCode");
   const continueUrl = searchParams.get("continueUrl");
+  const apiKey = searchParams.get("apiKey");
+  const lang = searchParams.get("lang");
 
   const [status, setStatus] = useState<HandlerStatus>("verifying");
   const [message, setMessage] = useState("Verifying security code...");
@@ -42,6 +44,10 @@ export default function AuthActionHandler() {
   const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
+    if (lang) {
+      auth.languageCode = lang;
+    }
+
     if (!mode || !oobCode) {
       setStatus("none");
       setMessage("No valid authorization parameters detected.");
@@ -161,14 +167,26 @@ export default function AuthActionHandler() {
           .then((info) => {
             const restoredEmail = info.data.email;
             setMessage(`Restoring your email address to ${restoredEmail}...`);
-            return applyActionCode(auth, oobCode);
-          })
-          .then(() => {
-            setStatus("success");
-            setMessage(
-              "Your email address has been successfully restored. You can now use your original email to log in."
-            );
-            startCountdown();
+            return applyActionCode(auth, oobCode).then(async () => {
+              // Also update Firestore profile if possible
+              try {
+                const currentUser = auth.currentUser;
+                let targetUid = currentUser?.uid;
+                if (targetUid && restoredEmail) {
+                  const { db } = await import("../firebase");
+                  const { doc, updateDoc } = await import("firebase/firestore");
+                  await updateDoc(doc(db, "users", targetUid), { email: restoredEmail });
+                }
+              } catch (profileErr) {
+                console.error("Failed to restore email in user profile:", profileErr);
+              }
+
+              setStatus("success");
+              setMessage(
+                "Your email address has been successfully restored. You can now use your original email to log in."
+              );
+              startCountdown();
+            });
           })
           .catch((err) => {
             setStatus("error");
@@ -180,18 +198,55 @@ export default function AuthActionHandler() {
         break;
 
       case "verifyAndChangeEmail":
-        applyActionCode(auth, oobCode)
-          .then(() => {
-            setStatus("success");
-            setMessage("Your new email address has been successfully verified and updated!");
-            startCountdown();
+        checkActionCode(auth, oobCode)
+          .then((info) => {
+            const newEmail = info.data.email;
+            const previousEmail = info.data.previousEmail;
+            return applyActionCode(auth, oobCode).then(async () => {
+              // Try to update Firestore user profile if we have a current user, or by querying previousEmail
+              try {
+                const currentUser = auth.currentUser;
+                let targetUid = currentUser?.uid;
+                
+                if (!targetUid && previousEmail) {
+                  // Resolve user profile by previous email to find the uid
+                  const { db } = await import("../firebase");
+                  const { collection, query, where, getDocs, updateDoc, doc } = await import("firebase/firestore");
+                  const q = query(collection(db, "users"), where("email", "==", previousEmail));
+                  const querySnapshot = await getDocs(q);
+                  if (!querySnapshot.empty) {
+                    const userDoc = querySnapshot.docs[0];
+                    await updateDoc(doc(db, "users", userDoc.id), { email: newEmail });
+                  }
+                } else if (targetUid && newEmail) {
+                  const { db } = await import("../firebase");
+                  const { doc, updateDoc } = await import("firebase/firestore");
+                  await updateDoc(doc(db, "users", targetUid), { email: newEmail });
+                }
+              } catch (profileErr) {
+                console.error("Failed to update user profile email in Firestore:", profileErr);
+              }
+
+              setStatus("success");
+              setMessage("Your new email address has been successfully verified and updated!");
+              startCountdown();
+            });
           })
           .catch((err) => {
-            setStatus("error");
-            setMessage(
-              err.message ||
-                "Failed to verify email change. The action code may be invalid or expired."
-            );
+            // Fallback to applying code directly if checkActionCode failed or wasn't fully populated
+            applyActionCode(auth, oobCode)
+              .then(() => {
+                setStatus("success");
+                setMessage("Your new email address has been successfully verified and updated!");
+                startCountdown();
+              })
+              .catch((applyErr) => {
+                setStatus("error");
+                setMessage(
+                  applyErr.message ||
+                    "Failed to verify email change. The action code may be invalid or expired."
+                );
+              });
           });
         break;
 
@@ -199,7 +254,7 @@ export default function AuthActionHandler() {
         setStatus("none");
         setMessage("The requested action is not recognized.");
     }
-  }, [mode, oobCode]);
+  }, [mode, oobCode, lang, continueUrl, apiKey, searchParams]);
 
   const startCountdown = () => {
     let count = 4;
