@@ -7,7 +7,8 @@ import {
   signOut,
   onAuthStateChanged,
   sendEmailVerification,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  verifyBeforeUpdateEmail
 } from "firebase/auth";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db, googleProvider, isLocalDemo, setLocalDemo } from "../firebase";
@@ -32,6 +33,7 @@ interface AuthContextType {
   sendVerificationEmail: () => Promise<void>;
   sendResetEmail: (email: string) => Promise<void>;
   resendVerificationEmailByEmail: (emailOrUsername: string) => Promise<void>;
+  updateEmailAddress: (newEmail: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -247,9 +249,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Send custom-domain action verification email
       try {
-        await sendEmailVerification(newUser, {
-          url: `https://mohandagar.in/auth?email=${encodeURIComponent(email)}&username=${encodeURIComponent(cleanUsername)}&fullName=${encodeURIComponent(fullName.trim())}&gender=${encodeURIComponent(gender || 'male')}&uid=${encodeURIComponent(newUser.uid)}`
-        });
+        const actionCodeSettings = {
+          url: "https://mohandagar.in/auth",
+          handleCodeInApp: false
+        };
+        await sendEmailVerification(newUser, actionCodeSettings);
       } catch (verificationError) {
         console.error("Failed to send verification email upon signup:", verificationError);
       }
@@ -323,9 +327,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!newUser.emailVerified) {
         // Automatically resend verification email
         try {
-          await sendEmailVerification(newUser, {
-            url: `https://mohandagar.in/auth?email=${encodeURIComponent(targetEmail)}`
-          });
+          const actionCodeSettings = {
+            url: "https://mohandagar.in/auth",
+            handleCodeInApp: false
+          };
+          await sendEmailVerification(newUser, actionCodeSettings);
         } catch (resendError) {
           console.error("Failed to resend verification email upon unverified login:", resendError);
         }
@@ -466,9 +472,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendVerificationEmail = async () => {
     if (isLocalDemoMode) return;
     if (!auth.currentUser) throw new Error("No user session found to verify.");
-    await sendEmailVerification(auth.currentUser, {
-      url: "https://mohandagar.in/auth"
-    });
+    const actionCodeSettings = {
+      url: "https://mohandagar.in/auth",
+      handleCodeInApp: false
+    };
+    await sendEmailVerification(auth.currentUser, actionCodeSettings);
   };
 
   const sendResetEmail = async (emailOrUsername: string) => {
@@ -487,9 +495,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      await sendPasswordResetEmail(auth, targetEmail, {
-        url: "https://mohandagar.in/auth"
-      });
+      const actionCodeSettings = {
+        url: "https://mohandagar.in/auth",
+        handleCodeInApp: false
+      };
+      await sendPasswordResetEmail(auth, targetEmail, actionCodeSettings);
     } catch (error: any) {
       // Ignore firebase user-not-found errors to prevent revealing account existence
       const ignoreErrors = ["auth/user-not-found", "user-not-found"];
@@ -504,6 +514,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isLocalDemoMode) return;
     // We explain that trying to log in automatically handles verification email dispatching securely
     throw new Error("Please enter your credentials and click Log In. If your email is unverified, a verification link will be sent to your inbox automatically!");
+  };
+
+  const updateEmailAddress = async (newEmail: string) => {
+    if (isLocalDemoMode) return;
+    if (!auth.currentUser) throw new Error("No user session found.");
+    const actionCodeSettings = {
+      url: "https://mohandagar.in/auth",
+      handleCodeInApp: false
+    };
+    await verifyBeforeUpdateEmail(auth.currentUser, newEmail, actionCodeSettings);
   };
 
   return (
@@ -524,7 +544,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchToLocalDemo,
         sendVerificationEmail,
         sendResetEmail,
-        resendVerificationEmailByEmail
+        resendVerificationEmailByEmail,
+        updateEmailAddress
       }}
     >
       {children}
