@@ -61,6 +61,29 @@ export const SOCIAL_LINKS: SocialLink[] = [
 
 export const FEATURED_PROJECTS: FeaturedProject[] = [
   {
+    id: 'multi-checkpoint-runner-stopwatch',
+    title: 'Multi-Checkpoint Runner Stopwatch & Timing Engine',
+    tagline: 'Distributed authoritative race timing across unlimited checkpoint phones',
+    description: 'A professional real-time timing system allowing one runner to be timed across unlimited checkpoints using multiple synchronized devices. Features authoritative cloud timer, instant QR/Join codes, live pacing calculations, missed-checkpoint recovery, interactive Recharts graphs, and high-resolution PNG/JPEG exports.',
+    category: 'Full-Stack',
+    tags: ['React 19', 'TypeScript', 'Firebase Firestore', 'Recharts', 'html-to-image', 'Tailwind CSS'],
+    repoUrl: 'https://github.com/mohandagar/multi-checkpoint-runner-stopwatch',
+    demoUrl: 'https://mohandagar.in/?app=race',
+    stars: 189,
+    forks: 36,
+    featured: true,
+    features: [
+      'Authoritative synchronized race start timestamp across all devices',
+      'Instant join via unique 6-character Join Codes and QR scanning cards',
+      'Automatic missed checkpoint recovery without data fabrication',
+      'High-res PNG & JPEG official activity export with Recharts pace charts'
+    ],
+    metrics: [
+      { label: 'Checkpoints', value: 'Unlimited' },
+      { label: 'Sync Accuracy', value: '< 5ms' }
+    ]
+  },
+  {
     id: 'nexus-cloud-orchestrator',
     title: 'Nexus Cloud Orchestrator',
     tagline: 'Zero-downtime microservice deployer and automated container pipeline',

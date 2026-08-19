@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "race": {
+      "title": "Race Time Trial",
+      "description": "Race setup and authoritative timing state",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "runnerName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "runnerBib": { "type": "string", "maxLength": 50 },
+        "totalPlannedDistanceMeters": { "type": "number" },
+        "displayUnit": { "type": "string", "enum": ["METERS", "KILOMETERS", "MILES"] },
+        "status": { "type": "string", "enum": ["SETUP", "READY", "RUNNING", "FINISHED", "CANCELLED"] },
+        "hostUid": { "type": "string", "maxLength": 128 },
+        "hostEmail": { "type": "string", "maxLength": 150 },
+        "hostName": { "type": "string", "maxLength": 100 },
+        "startTimestamp": { "type": "number" },
+        "finishTimestamp": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "checkpoints": { "type": "array" },
+        "hostAssignedCheckpointId": { "type": "string", "maxLength": 128 },
+        "notes": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["name", "runnerName", "totalPlannedDistanceMeters", "status", "hostUid"]
+    },
+    "timingEvent": {
+      "title": "Timing Event",
+      "description": "Authoritative immutable checkpoint split or finish timestamp",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "raceId": { "type": "string", "maxLength": 128 },
+        "runnerId": { "type": "string", "maxLength": 128 },
+        "checkpointId": { "type": "string", "maxLength": 128 },
+        "checkpointName": { "type": "string", "maxLength": 100 },
+        "checkpointDistanceMeters": { "type": "number" },
+        "timestamp": { "type": "number" },
+        "elapsedMs": { "type": "number" },
+        "recordedByUid": { "type": "string", "maxLength": 128 },
+        "staffName": { "type": "string", "maxLength": 100 },
+        "deviceId": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "enum": ["START", "SPLIT", "FINISH"] },
+        "clientRecordedAt": { "type": "number" }
+      },
+      "required": ["raceId", "checkpointId", "checkpointDistanceMeters", "timestamp", "elapsedMs", "eventType"]
+    },
+    "staffSession": {
+      "title": "Staff Device Session",
+      "description": "Connected device heartbeat and assignment info",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "raceId": { "type": "string", "maxLength": 128 },
+        "checkpointId": { "type": "string", "maxLength": 128 },
+        "checkpointName": { "type": "string", "maxLength": 100 },
+        "checkpointDistanceMeters": { "type": "number" },
+        "staffName": { "type": "string", "maxLength": 100 },
+        "deviceName": { "type": "string", "maxLength": 100 },
+        "joinedAt": { "type": "number" },
+        "lastSeenAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["ONLINE", "OFFLINE"] },
+        "isHost": { "type": "boolean" }
+      },
+      "required": ["raceId", "checkpointId", "staffName", "status"]
+    },
+    "joinCodeMapping": {
+      "title": "Join Code Mapping",
+      "description": "Resolves unique short join codes to race and checkpoint ID",
+      "type": "object",
+      "properties": {
+        "joinCode": { "type": "string", "maxLength": 32 },
+        "raceId": { "type": "string", "maxLength": 128 },
+        "checkpointId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["joinCode", "raceId", "checkpointId", "active"]
+    }
+  },
+  "firestore": {
+    "/races/{raceId}": {
+      "schema": "race",
+      "description": "Race time trial sessions and checkpoint definitions"
+    },
+    "/races/{raceId}/events/{eventId}": {
+      "schema": "timingEvent",
+      "description": "Immutable timing events recorded by start, staff or finish"
+    },
+    "/races/{raceId}/staffSessions/{sessionId}": {
+      "schema": "staffSession",
+      "description": "Staff device heartbeats and active assignments"
+    },
+    "/joinCodes/{joinCode}": {
+      "schema": "joinCodeMapping",
+      "description": "Quick lookup table for staff join codes"
+    }
+  }
+}

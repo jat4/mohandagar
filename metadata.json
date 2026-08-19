@@ -1,6 +1,6 @@
 {
   "name": "Mohan Dagar - Portfolio & Website",
-  "description": "Personal developer portfolio and website for Mohan Dagar (mohandagar.in), featuring live GitHub integration, showcase projects, tech skills, and GitHub Pages CNAME deployment configuration.",
+  "description": "Personal developer website for Mohan Dagar (mohandagar.in) featuring GitHub integration, CNAME deployment tools, and a real-time Multi-Checkpoint Runner Stopwatch & Timing System with authoritative cloud synchronization, live pacing analytics, and activity exports.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

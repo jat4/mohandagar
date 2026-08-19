@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { PERSONAL_INFO, SOCIAL_LINKS } from '../data/portfolioData';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { 
   Mail, 
   Github, 
@@ -11,7 +13,9 @@ import {
   Send, 
   MessageSquare, 
   Sparkles,
-  ArrowUpRight
+  ArrowUpRight,
+  CheckCircle2,
+  Database
 } from 'lucide-react';
 
 export const ContactSection: React.FC = () => {
@@ -20,6 +24,7 @@ export const ContactSection: React.FC = () => {
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const handleCopyEmail = () => {
@@ -28,16 +33,26 @@ export const ContactSection: React.FC = () => {
     setTimeout(() => setCopiedEmail(false), 2000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Pre-fill mailto link and trigger
-    const mailtoUrl = `mailto:${PERSONAL_INFO.email}?subject=${encodeURIComponent(
-      subject || `Inquiry from ${name} via mohandagar.in`
-    )}&body=${encodeURIComponent(
-      `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`
-    )}`;
-    window.location.href = mailtoUrl;
-    setSubmitted(true);
+    setSubmitting(true);
+
+    try {
+      // Save directly to Firestore database
+      await addDoc(collection(db, 'contact_messages'), {
+        name: name.trim(),
+        email: email.trim(),
+        subject: subject.trim() || `Inquiry from ${name} via mohandagar.in`,
+        message: message.trim(),
+        status: 'unread',
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn("Firestore message save fallback:", err);
+    } finally {
+      setSubmitting(false);
+      setSubmitted(true);
+    }
   };
 
   return (

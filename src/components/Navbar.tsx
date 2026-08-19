@@ -9,19 +9,23 @@ import {
   ExternalLink,
   Code2,
   Sparkles,
-  Rocket
+  Rocket,
+  Timer,
+  Activity
 } from 'lucide-react';
 
 interface NavbarProps {
   onOpenTerminal: () => void;
   onOpenCnameGuide: () => void;
   onOpenDeployTroubleshooter: () => void;
+  onOpenRaceTiming: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
   onOpenTerminal, 
   onOpenCnameGuide,
-  onOpenDeployTroubleshooter 
+  onOpenDeployTroubleshooter,
+  onOpenRaceTiming
 }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -39,6 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { name: 'Projects', href: '#projects' },
     { name: 'Skills', href: '#skills' },
     { name: 'Experience', href: '#experience' },
+    { name: 'Guestbook', href: '#guestbook' },
     { name: 'CNAME Setup', href: '#cname-guide' },
     { name: 'Contact', href: '#contact' },
   ];
@@ -94,6 +99,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Quick Actions */}
           <div className="hidden lg:flex items-center gap-2.5">
+            <button
+              id="race-timing-nav-btn"
+              onClick={onOpenRaceTiming}
+              type="button"
+              className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 text-xs font-bold font-mono flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+              title="Multi-Checkpoint Runner Stopwatch & Timing System"
+            >
+              <Timer className="w-3.5 h-3.5 fill-slate-950" />
+              <span>Race Timer</span>
+            </button>
+
             <button
               id="deploy-helper-nav-btn"
               onClick={onOpenDeployTroubleshooter}
@@ -176,6 +192,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </a>
               ))}
               <div className="pt-3 border-t border-slate-800/80 flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenRaceTiming();
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-bold text-xs font-mono flex items-center gap-2"
+                >
+                  <Timer className="w-4 h-4" />
+                  <span>Multi-Checkpoint Race Stopwatch</span>
+                </button>
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);

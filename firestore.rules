@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default Deny All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Security Primitives
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+        (request.auth.token.email == 'jatdgr@gmail.com' && request.auth.token.email_verified == true);
+    }
+
+    // Timing Event Validation
+    function isValidTimingEvent(data) {
+      return data.raceId is string && data.raceId.size() <= 128
+        && data.checkpointId is string && data.checkpointId.size() <= 128
+        && data.checkpointDistanceMeters is number && data.checkpointDistanceMeters >= 0
+        && data.timestamp is number
+        && data.elapsedMs is number && data.elapsedMs >= 0
+        && data.eventType in ['START', 'SPLIT', 'FINISH'];
+    }
+
+    // 1. Races Collection
+    match /races/{raceId} {
+      allow get, list: if true;
+      allow create: if isValidId(raceId) && isSignedIn();
+      allow update: if isValidId(raceId);
+      allow delete: if isValidId(raceId) && (isAdmin() || (isSignedIn() && existing().hostUid == request.auth.uid));
+
+      // Subcollection: Immutable Timing Events
+      match /events/{eventId} {
+        allow get, list: if true;
+        allow create: if isValidId(eventId) && isValidTimingEvent(incoming());
+        // Timing events are strictly IMMUTABLE
+        allow update, delete: if false;
+      }
+
+      // Subcollection: Staff Sessions & Device Heartbeats
+      match /staffSessions/{sessionId} {
+        allow get, list: if true;
+        allow create, update: if isValidId(sessionId)
+          && incoming().raceId is string
+          && incoming().checkpointId is string;
+        allow delete: if isValidId(sessionId) && isSignedIn();
+      }
+    }
+
+    // 2. Join Codes Lookup Table
+    match /joinCodes/{joinCode} {
+      allow get, list: if true;
+      allow create, update: if isValidId(joinCode);
+      allow delete: if isValidId(joinCode) && isSignedIn();
+    }
+
+    // 3. Visitor Guestbook (Preserved)
+    match /guestbook/{entryId} {
+      allow get, list: if true;
+      allow create: if isValidId(entryId) && incoming().createdAt is timestamp;
+      allow update, delete: if isValidId(entryId) && isAdmin();
+    }
+
+    // 4. Contact Messages (Preserved)
+    match /contact_messages/{messageId} {
+      allow create: if isValidId(messageId) && incoming().createdAt is timestamp;
+      allow get, list, update, delete: if isAdmin();
+    }
+  }
+}

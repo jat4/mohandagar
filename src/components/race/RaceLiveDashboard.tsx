@@ -1,0 +1,417 @@
+import React, { useState } from 'react';
+import { 
+  Race, 
+  TimingEvent, 
+  StaffSession, 
+  Checkpoint 
+} from '../../types/race';
+import { RaceService } from '../../services/raceService';
+import { 
+  calculateRaceStatistics, 
+  formatDistance, 
+  formatTimeMs 
+} from '../../utils/raceCalculations';
+import { RaceTimerClock } from './RaceTimerClock';
+import { QrCodeModal } from './QrCodeModal';
+import { 
+  Play, 
+  Flag, 
+  QrCode, 
+  RotateCcw, 
+  Wifi, 
+  WifiOff, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Clock, 
+  Zap, 
+  Share2, 
+  Smartphone, 
+  UserCheck, 
+  Trophy,
+  ArrowRight,
+  TrendingUp,
+  Activity
+} from 'lucide-react';
+
+interface RaceLiveDashboardProps {
+  race: Race;
+  events: TimingEvent[];
+  staffSessions: StaffSession[];
+  onOpenSummary: () => void;
+  onAssignSelfToCheckpoint: (checkpoint: Checkpoint) => void;
+  onResetRace: () => void;
+}
+
+export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
+  race,
+  events,
+  staffSessions,
+  onOpenSummary,
+  onAssignSelfToCheckpoint,
+  onResetRace
+}) => {
+  const [selectedQrCheckpoint, setSelectedQrCheckpoint] = useState<Checkpoint | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+
+  const stats = calculateRaceStatistics(race, events);
+  const isRunning = race.status === 'RUNNING';
+  const isReady = race.status === 'READY';
+  const isFinished = race.status === 'FINISHED';
+
+  // Map staff sessions by checkpointId
+  // A device is considered ONLINE if its lastSeenAt is within 35 seconds
+  const now = Date.now();
+  const sessionByCheckpoint = new Map<string, StaffSession>();
+  staffSessions.forEach((s) => {
+    sessionByCheckpoint.set(s.checkpointId, s);
+  });
+
+  const handleStartRace = async () => {
+    setStarting(true);
+    try {
+      await RaceService.startRace(race.id);
+    } catch (err) {
+      console.error('Error starting race:', err);
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleFinishRace = async () => {
+    if (!confirm('Mark race as officially FINISHED?')) return;
+    setFinishing(true);
+    try {
+      await RaceService.finishRace(race.id);
+    } catch (err) {
+      console.error('Error finishing race:', err);
+    } finally {
+      setFinishing(false);
+    }
+  };
+
+  const progressPercent = Math.min(
+    100,
+    race.totalPlannedDistanceMeters > 0
+      ? (stats.actualDistanceMeters / race.totalPlannedDistanceMeters) * 100
+      : 0
+  );
+
+  return (
+    <div className="space-y-8 animate-fadeIn">
+      
+      {/* Top Banner & Control Center */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono font-bold tracking-wider uppercase mb-1">
+              <Activity className="w-4 h-4 animate-pulse" />
+              <span>Authoritative Live Race Controller</span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-100 tracking-tight">
+              {race.name}
+            </h1>
+            <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-400 mt-1.5">
+              <span>Runner: <strong className="text-slate-200">{race.runnerName}</strong> (Bib #{race.runnerBib})</span>
+              <span>•</span>
+              <span>Planned: <strong className="text-cyan-300">{formatDistance(race.totalPlannedDistanceMeters, race.displayUnit)}</strong></span>
+              <span>•</span>
+              <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
+                isRunning
+                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                  : isFinished
+                  ? 'bg-slate-800 text-slate-300'
+                  : 'bg-amber-950 text-amber-300 border border-amber-500/30'
+              }`}>
+                STATUS: {race.status}
+              </span>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-3">
+            {isReady && (
+              <button
+                onClick={handleStartRace}
+                disabled={starting}
+                className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black font-mono text-sm sm:text-base flex items-center gap-2.5 shadow-xl shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <Play className="w-5 h-5 fill-slate-950" />
+                <span>{starting ? 'STARTING...' : 'START RACE'}</span>
+              </button>
+            )}
+
+            {isRunning && (
+              <button
+                onClick={handleFinishRace}
+                disabled={finishing}
+                className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold font-mono text-sm flex items-center gap-2 shadow-lg shadow-rose-600/30 transition-all cursor-pointer"
+              >
+                <Flag className="w-4 h-4" />
+                <span>FINISH RACE</span>
+              </button>
+            )}
+
+            {isFinished && (
+              <button
+                onClick={onOpenSummary}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
+              >
+                <Trophy className="w-4 h-4" />
+                <span>View Full Activity & Export</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                if (confirm('Reset race timer and clear all recorded checkpoint splits?')) {
+                  onResetRace();
+                }
+              }}
+              className="p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-colors cursor-pointer"
+              title="Reset Race"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Center Live Stopwatch */}
+        <div className="my-8 text-center">
+          <div className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-2">
+            Synchronized Race Clock
+          </div>
+          <RaceTimerClock
+            startTimestamp={race.startTimestamp}
+            finishTimestamp={race.finishTimestamp}
+            isRunning={isRunning}
+            size="hero"
+            className="text-cyan-300 font-mono"
+          />
+
+          {/* Progress Bar */}
+          <div className="max-w-md mx-auto mt-6">
+            <div className="flex justify-between text-xs font-mono text-slate-400 mb-1.5">
+              <span>Completed: {stats.actualDistanceKm.toFixed(2)} km</span>
+              <span>{progressPercent.toFixed(0)}%</span>
+              <span>Planned: {(race.totalPlannedDistanceMeters / 1000).toFixed(2)} km</span>
+            </div>
+            <div className="h-3 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Metrics Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-slate-800">
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
+            <div className="text-[10px] font-mono text-slate-500 uppercase">Current Distance</div>
+            <div className="text-xl font-mono font-bold text-cyan-300">
+              {stats.actualDistanceKm.toFixed(2)} km
+            </div>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
+            <div className="text-[10px] font-mono text-slate-500 uppercase">Avg Pace</div>
+            <div className="text-xl font-mono font-bold text-amber-300">
+              {stats.averagePaceFormatted}
+            </div>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
+            <div className="text-[10px] font-mono text-slate-500 uppercase">Avg Speed</div>
+            <div className="text-xl font-mono font-bold text-emerald-300">
+              {stats.averageSpeedFormatted}
+            </div>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
+            <div className="text-[10px] font-mono text-slate-500 uppercase">Splits Recorded</div>
+            <div className="text-xl font-mono font-bold text-slate-200">
+              {stats.recordedCheckpointsCount} / {stats.totalCheckpointsCount}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Checkpoint Live Table & Staff Devices */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-800">
+          <div>
+            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-cyan-400" />
+              <span>Checkpoints & Assigned Devices</span>
+            </h2>
+            <p className="text-xs text-slate-400 font-mono mt-0.5">
+              Live status of checkpoint timing devices, join codes, and recorded split segments
+            </p>
+          </div>
+
+          <div className="text-xs font-mono text-slate-400">
+            Click <strong className="text-cyan-300">"Time CP as Host"</strong> on any checkpoint to open its timer directly on this device.
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto rounded-2xl border border-slate-800">
+          <table className="w-full text-left text-xs font-mono">
+            <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px]">
+              <tr>
+                <th className="py-3.5 px-4">Checkpoint</th>
+                <th className="py-3.5 px-4">Distance</th>
+                <th className="py-3.5 px-4">Assigned Device / Staff</th>
+                <th className="py-3.5 px-4">Connection</th>
+                <th className="py-3.5 px-4">Event Status</th>
+                <th className="py-3.5 px-4">Split Time</th>
+                <th className="py-3.5 px-4">Measured Segment</th>
+                <th className="py-3.5 px-4">Segment Pace</th>
+                <th className="py-3.5 px-4">Speed</th>
+                <th className="py-3.5 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
+              {stats.processedCheckpoints.map((row) => {
+                const session = sessionByCheckpoint.get(row.checkpoint.id);
+                const isOnline = session && (now - session.lastSeenAt < 35000);
+
+                return (
+                  <tr 
+                    key={row.checkpoint.id}
+                    className={`hover:bg-slate-800/40 transition-colors ${
+                      row.status === 'MISSED' ? 'bg-amber-950/15' : ''
+                    }`}
+                  >
+                    <td className="py-3.5 px-4 font-bold text-slate-100">
+                      <div>{row.checkpoint.name}</div>
+                      {row.checkpoint.type === 'SPLIT_AND_FINISH' && (
+                        <span className="text-[10px] text-rose-400 font-semibold uppercase">
+                          • Split + Finish Allowed
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="py-3.5 px-4 text-slate-300 font-semibold">
+                      {formatDistance(row.checkpoint.distanceMeters, race.displayUnit)}
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      {session ? (
+                        <div>
+                          <div className="font-bold text-slate-200">{session.staffName}</div>
+                          <div className="text-[10px] text-slate-400">{session.deviceName}</div>
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 italic">
+                          {row.checkpoint.assignedStaffName || 'Unassigned'}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      {isOnline ? (
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold inline-flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>CONNECTED</span>
+                        </span>
+                      ) : session ? (
+                        <span className="px-2.5 py-1 rounded-full bg-rose-950/80 border border-rose-500/40 text-rose-300 text-[10px] font-bold inline-flex items-center gap-1">
+                          <WifiOff className="w-3 h-3 text-rose-400" />
+                          <span>OFFLINE</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-600 text-[11px]">No Device</span>
+                      )}
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      {row.status === 'RECORDED' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>RECORDED</span>
+                        </span>
+                      ) : row.status === 'MISSED' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/90 border border-amber-500/40 text-amber-300 inline-flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>MISSED</span>
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400">
+                          {row.status}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="py-3.5 px-4 font-bold text-slate-100">
+                      {row.event ? formatTimeMs(row.event.elapsedMs) : '—'}
+                    </td>
+
+                    <td className="py-3.5 px-4 text-slate-300">
+                      {row.segment ? (
+                        <div>
+                          <span>{row.segment.fromCheckpointName} → {row.segment.toCheckpointName}</span>
+                          {row.segment.isMultiCheckpointSpan && (
+                            <div className="text-[10px] text-amber-400 font-bold">
+                              Spanned {row.segment.missedCheckpointsCount} Missed CP
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
+                    </td>
+
+                    <td className="py-3.5 px-4 font-bold text-amber-300">
+                      {row.segment ? row.segment.segmentPaceFormatted : '—'}
+                    </td>
+
+                    <td className="py-3.5 px-4 font-bold text-emerald-300">
+                      {row.segment ? row.segment.segmentSpeedFormatted : '—'}
+                    </td>
+
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {/* Host Self-Assignment Button */}
+                        <button
+                          onClick={() => onAssignSelfToCheckpoint(row.checkpoint)}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Open Checkpoint Split Screen as Host"
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Time as Host</span>
+                        </button>
+
+                        {/* QR Code / Join Code Modal Opener */}
+                        <button
+                          onClick={() => setSelectedQrCheckpoint(row.checkpoint)}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                          title="Show QR Code & Join Code"
+                        >
+                          <QrCode className="w-4 h-4 text-cyan-400" />
+                        </button>
+                      </div>
+                    </td>
+
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      {/* QR Code Popup Modal */}
+      {selectedQrCheckpoint && (
+        <QrCodeModal
+          isOpen={true}
+          onClose={() => setSelectedQrCheckpoint(null)}
+          race={race}
+          checkpoint={selectedQrCheckpoint}
+        />
+      )}
+
+    </div>
+  );
+};
