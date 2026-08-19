@@ -39,10 +39,16 @@ import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 
 interface HostDashboardProps {
   onJoinByCodeClicked: () => void;
+  routeRaceId?: string;
+  routeView?: 'home' | 'live' | 'summary';
+  onNavigateRoute?: (view: 'home' | 'live' | 'summary', raceId?: string) => void;
 }
 
 export const HostDashboard: React.FC<HostDashboardProps> = ({
-  onJoinByCodeClicked
+  onJoinByCodeClicked,
+  routeRaceId,
+  routeView = 'home',
+  onNavigateRoute
 }) => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -51,8 +57,32 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const [activeRace, setActiveRace] = useState<Race | null>(null);
   const [events, setEvents] = useState<TimingEvent[]>([]);
   const [staffSessions, setStaffSessions] = useState<StaffSession[]>([]);
-  const [viewMode, setViewMode] = useState<'CONTROLLER' | 'SUMMARY' | 'TIMING_AS_HOST'>('CONTROLLER');
+  const [viewMode, setViewMode] = useState<'CONTROLLER' | 'SUMMARY' | 'TIMING_AS_HOST'>(
+    routeView === 'summary' ? 'SUMMARY' : 'CONTROLLER'
+  );
   const [hostAssignedCheckpoint, setHostAssignedCheckpoint] = useState<Checkpoint | null>(null);
+
+  // Load race from route if provided
+  useEffect(() => {
+    if (routeRaceId && activeRace?.id !== routeRaceId) {
+      RaceService.getRace(routeRaceId).then((r) => {
+        if (r) {
+          setActiveRace(r);
+          setViewMode(routeView === 'summary' ? 'SUMMARY' : 'CONTROLLER');
+        }
+      }).catch(console.error);
+    } else if (!routeRaceId && !activeRace) {
+      setViewMode('CONTROLLER');
+    }
+  }, [routeRaceId, routeView]);
+
+  useEffect(() => {
+    if (routeView === 'summary') {
+      setViewMode('SUMMARY');
+    } else if (routeView === 'live' && activeRace) {
+      setViewMode('CONTROLLER');
+    }
+  }, [routeView, activeRace?.id]);
 
   // Create Race Form state
   const [showCreateWizard, setShowCreateWizard] = useState(false);
@@ -230,6 +260,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
       setActiveRace(created);
       setShowCreateWizard(false);
       setViewMode('CONTROLLER');
+      if (onNavigateRoute) {
+        onNavigateRoute('live', created.id);
+      }
     } catch (err: any) {
       console.error(err);
       setErrorMessage(err.message || 'Failed to create race.');
@@ -266,11 +299,14 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   // If viewing post-race activity summary
   if (viewMode === 'SUMMARY' && activeRace) {
     return (
-      <div className="pt-8">
+      <div className="pt-8 max-w-7xl mx-auto px-4">
         <RaceActivitySummary
           race={activeRace}
           events={events}
-          onBackToDashboard={() => setViewMode('CONTROLLER')}
+          onBackToDashboard={() => {
+            setViewMode('CONTROLLER');
+            if (onNavigateRoute) onNavigateRoute('live', activeRace.id);
+          }}
           onResetRace={handleResetRace}
         />
       </div>
@@ -350,7 +386,10 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setViewMode('SUMMARY')}
+                onClick={() => {
+                  setViewMode('SUMMARY');
+                  if (onNavigateRoute && activeRace) onNavigateRoute('summary', activeRace.id);
+                }}
                 className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono transition-colors cursor-pointer"
               >
                 View Activity Summary
@@ -360,6 +399,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                 onClick={() => {
                   if (confirm('Close current race from host controller? (Race state remains saved in Firestore)')) {
                     setActiveRace(null);
+                    if (onNavigateRoute) onNavigateRoute('home');
                   }
                 }}
                 className="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-mono transition-colors cursor-pointer"
@@ -373,7 +413,10 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             race={activeRace}
             events={events}
             staffSessions={staffSessions}
-            onOpenSummary={() => setViewMode('SUMMARY')}
+            onOpenSummary={() => {
+              setViewMode('SUMMARY');
+              if (onNavigateRoute && activeRace) onNavigateRoute('summary', activeRace.id);
+            }}
             onAssignSelfToCheckpoint={handleAssignSelfToCheckpoint}
             onResetRace={handleResetRace}
           />

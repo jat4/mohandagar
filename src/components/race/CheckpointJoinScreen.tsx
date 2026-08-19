@@ -18,15 +18,24 @@ import {
 
 interface CheckpointJoinScreenProps {
   initialJoinCode?: string;
+  initialStaffParams?: {
+    raceId: string;
+    checkpointId: string;
+    joinCode?: string;
+    staffName?: string;
+  };
   onBackToMain: () => void;
+  onJoinedStaff?: (info: { raceId: string; checkpointId: string; joinCode?: string; staffName: string }) => void;
 }
 
 export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
   initialJoinCode = '',
-  onBackToMain
+  initialStaffParams,
+  onBackToMain,
+  onJoinedStaff
 }) => {
   const [joinCode, setJoinCode] = useState(initialJoinCode.toUpperCase());
-  const [staffName, setStaffName] = useState('');
+  const [staffName, setStaffName] = useState(initialStaffParams?.staffName || '');
   const [deviceName, setDeviceName] = useState(() => {
     return navigator.userAgent.includes('Mobile') ? 'Mobile Phone' : 'Tablet / Laptop';
   });
@@ -38,11 +47,32 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
   const [resolvedRace, setResolvedRace] = useState<Race | null>(null);
   const [resolvedCheckpoint, setResolvedCheckpoint] = useState<Checkpoint | null>(null);
   const [events, setEvents] = useState<TimingEvent[]>([]);
-  const [joined, setJoined] = useState(false);
+  const [joined, setJoined] = useState(Boolean(initialStaffParams?.raceId && initialStaffParams?.checkpointId));
+
+  // If direct staff params are provided from route
+  useEffect(() => {
+    if (initialStaffParams?.raceId && initialStaffParams?.checkpointId) {
+      setLoading(true);
+      RaceService.getRace(initialStaffParams.raceId).then((race) => {
+        if (race) {
+          const cp = race.checkpoints.find((c) => c.id === initialStaffParams.checkpointId);
+          if (cp) {
+            setResolvedRace(race);
+            setResolvedCheckpoint(cp);
+            setJoined(true);
+            if (initialStaffParams.staffName) {
+              setStaffName(initialStaffParams.staffName);
+            }
+          }
+        }
+      }).catch(console.error).finally(() => setLoading(false));
+    }
+  }, [initialStaffParams?.raceId, initialStaffParams?.checkpointId]);
 
   // If initialJoinCode provided from URL parameter
   useEffect(() => {
-    if (initialJoinCode) {
+    if (initialJoinCode && !initialStaffParams?.raceId) {
+      setJoinCode(initialJoinCode.toUpperCase());
       handleLookup(initialJoinCode);
     }
   }, [initialJoinCode]);
@@ -125,6 +155,14 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
       return;
     }
     setJoined(true);
+    if (onJoinedStaff && resolvedRace && resolvedCheckpoint) {
+      onJoinedStaff({
+        raceId: resolvedRace.id,
+        checkpointId: resolvedCheckpoint.id,
+        joinCode: joinCode.trim() || undefined,
+        staffName: staffName.trim()
+      });
+    }
   };
 
   if (joined && resolvedRace && resolvedCheckpoint) {
@@ -135,7 +173,10 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
         events={events}
         staffName={staffName.trim()}
         deviceName={deviceName.trim() || 'Staff Phone'}
-        onExit={() => setJoined(false)}
+        onExit={() => {
+          setJoined(false);
+          onBackToMain();
+        }}
       />
     );
   }
