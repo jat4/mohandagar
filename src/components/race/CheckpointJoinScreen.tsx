@@ -1,8 +1,14 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect } from 'react';
 import { RaceService } from '../../services/raceService';
 import { Race, Checkpoint, TimingEvent } from '../../types/race';
 import { formatDistance } from '../../utils/raceCalculations';
 import { CheckpointStaffScreen } from './CheckpointStaffScreen';
+import { CameraQrScanner } from './CameraQrScanner';
 import { 
   KeyRound, 
   ArrowRight, 
@@ -12,8 +18,11 @@ import {
   Smartphone, 
   User, 
   Flag,
-  Sparkles,
-  ArrowLeft
+  Sparkles, 
+  ArrowLeft,
+  Camera,
+  Keyboard,
+  ShieldCheck
 } from 'lucide-react';
 
 interface CheckpointJoinScreenProps {
@@ -34,6 +43,10 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
   onBackToMain,
   onJoinedStaff
 }) => {
+  const [joinMethod, setJoinMethod] = useState<'QR' | 'MANUAL'>(() => {
+    return initialJoinCode ? 'MANUAL' : 'QR';
+  });
+
   const [joinCode, setJoinCode] = useState(initialJoinCode.toUpperCase());
   const [staffName, setStaffName] = useState(initialStaffParams?.staffName || '');
   const [deviceName, setDeviceName] = useState(() => {
@@ -73,6 +86,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
   useEffect(() => {
     if (initialJoinCode && !initialStaffParams?.raceId) {
       setJoinCode(initialJoinCode.toUpperCase());
+      setJoinMethod('MANUAL');
       handleLookup(initialJoinCode);
     }
   }, [initialJoinCode]);
@@ -107,7 +121,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
   const handleLookup = async (codeToLookup?: string) => {
     const code = (codeToLookup || joinCode).trim().toUpperCase();
     if (!code) {
-      setErrorMessage('Please enter a join code.');
+      setErrorMessage('Please enter or scan a join code.');
       return;
     }
 
@@ -117,7 +131,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
     try {
       const mapping = await RaceService.resolveJoinCode(code);
       if (!mapping || !mapping.active) {
-        setErrorMessage('Checkpoint join code is invalid or expired.');
+        setErrorMessage(`Checkpoint join code "${code}" is invalid or expired.`);
         setLoading(false);
         return;
       }
@@ -138,6 +152,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
 
       setResolvedRace(race);
       setResolvedCheckpoint(checkpoint);
+      setJoinCode(code);
       if (checkpoint.assignedStaffName && !staffName) {
         setStaffName(checkpoint.assignedStaffName);
       }
@@ -146,6 +161,16 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleQrScanned = (scannedText: string) => {
+    let cleanCode = scannedText.trim();
+    // Support URLs like https://mohandagar.in/#/join/8K4P-29
+    if (cleanCode.includes('/join/')) {
+      cleanCode = cleanCode.split('/join/')[1].split('?')[0].split('/')[0];
+    }
+    setJoinCode(cleanCode.toUpperCase());
+    handleLookup(cleanCode);
   };
 
   const handleConfirmJoin = (e: React.FormEvent) => {
@@ -191,20 +216,20 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
           className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-slate-200 mb-6 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Home</span>
+          <span>Back to Host Screen</span>
         </button>
 
         {/* Title */}
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2.5 rounded-xl bg-cyan-950 border border-cyan-500/40 text-cyan-400">
-            <KeyRound className="w-6 h-6" />
+            <QrCode className="w-6 h-6" />
           </div>
           <div>
             <h1 className="text-2xl font-extrabold text-slate-100 tracking-tight">
-              Join Checkpoint
+              Checkpoint Join
             </h1>
             <p className="text-xs text-slate-400 font-mono">
-              Connect your device to time a race split
+              Scan QR code or enter join code manually
             </p>
           </div>
         </div>
@@ -216,51 +241,103 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
           </div>
         )}
 
-        {/* Step 1: Code Entry */}
+        {/* Step 1: Scan QR or Manual Code Entry */}
         {!resolvedCheckpoint ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleLookup();
-            }}
-            className="space-y-4 mt-6"
-          >
-            <div>
-              <label className="block text-xs font-mono text-slate-300 mb-1.5">
-                Checkpoint Join Code *
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                  placeholder="e.g. 8K4P-29"
-                  className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-cyan-300 font-mono text-xl font-bold tracking-wider placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all uppercase"
-                />
-              </div>
-              <p className="text-[11px] font-mono text-slate-500 mt-1.5">
-                The 6-character code provided on the Host Dashboard or printed card.
-              </p>
+          <div className="mt-5 space-y-4">
+            
+            {/* Join Method Selector Tabs */}
+            <div className="grid grid-cols-2 gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setJoinMethod('QR')}
+                className={`py-2 px-3 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  joinMethod === 'QR'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>Scan QR Code</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setJoinMethod('MANUAL')}
+                className={`py-2 px-3 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  joinMethod === 'MANUAL'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Keyboard className="w-3.5 h-3.5" />
+                <span>Enter Code</span>
+              </button>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading || !joinCode.trim()}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer disabled:opacity-50"
-            >
-              <span>{loading ? 'Validating Code...' : 'Find Checkpoint'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
+            {/* View A: Live Camera QR Scanner */}
+            {joinMethod === 'QR' && (
+              <div className="space-y-3 animate-fadeIn">
+                <CameraQrScanner onScanSuccess={handleQrScanned} />
+                <p className="text-center text-[11px] font-mono text-slate-400">
+                  Point camera at the QR code displayed on the Host Dashboard.
+                </p>
+              </div>
+            )}
+
+            {/* View B: Manual 6-Digit Code Input */}
+            {joinMethod === 'MANUAL' && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleLookup();
+                }}
+                className="space-y-4 animate-fadeIn"
+              >
+                <div>
+                  <label className="block text-xs font-mono text-slate-300 mb-1.5">
+                    Checkpoint Join Code *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={joinCode}
+                      onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                      placeholder="e.g. 8K4P-29"
+                      className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-cyan-300 font-mono text-xl font-bold tracking-wider placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all uppercase text-center"
+                    />
+                  </div>
+                  <p className="text-[11px] font-mono text-slate-500 mt-1.5 text-center">
+                    The 6-character code generated for this checkpoint.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || !joinCode.trim()}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <span>{loading ? 'Validating Code...' : 'Connect Checkpoint'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+            )}
+
+          </div>
         ) : (
-          /* Step 2: Confirm Staff Info & Connect */
+          /* Step 2: Confirm Staff Info & Enter Timing Interface */
           <form onSubmit={handleConfirmJoin} className="space-y-4 mt-5 animate-fadeIn">
             
             {/* Checkpoint Details Card */}
-            <div className="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-500/40 text-left">
-              <div className="flex items-center justify-between text-xs font-mono text-cyan-400 mb-1 font-bold">
-                <span>VERIFIED CHECKPOINT</span>
+            <div className={`p-4 rounded-2xl border text-left ${
+              resolvedCheckpoint.type === 'SPLIT_AND_FINISH'
+                ? 'bg-rose-950/30 border-rose-500/40'
+                : 'bg-cyan-950/40 border-cyan-500/40'
+            }`}>
+              <div className="flex items-center justify-between text-xs font-mono mb-1 font-bold">
+                <span className={resolvedCheckpoint.type === 'SPLIT_AND_FINISH' ? 'text-rose-400' : 'text-cyan-400'}>
+                  {resolvedCheckpoint.type === 'SPLIT_AND_FINISH' ? '🏁 FINISH GATE CHECKPOINT' : '⚡ INTERMEDIATE SPLIT CHECKPOINT'}
+                </span>
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="text-xl font-bold text-slate-100">
@@ -268,8 +345,9 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
               </div>
               <div className="text-xs font-mono text-slate-300 mt-0.5">
                 Distance: <strong>{formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace?.displayUnit)}</strong>
+                <span className="ml-2 text-slate-500">• Authority: <strong className="text-slate-200">{resolvedCheckpoint.type === 'SPLIT_AND_FINISH' ? 'Finish Only' : 'Split Only'}</strong></span>
               </div>
-              <div className="mt-2 pt-2 border-t border-cyan-900/60 text-xs font-mono text-slate-400">
+              <div className="mt-2 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
                 Race: <strong className="text-slate-200">{resolvedRace?.name}</strong> • Runner: <strong className="text-slate-200">{resolvedRace?.runnerName}</strong>
               </div>
             </div>
@@ -285,7 +363,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
                   required
                   value={staffName}
                   onChange={(e) => setStaffName(e.target.value)}
-                  placeholder="e.g. Rahul Sharma"
+                  placeholder="e.g. Rahul Sharma (Finish Marshal)"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-cyan-500 transition-colors placeholder:text-slate-600"
                 />
               </div>
@@ -301,7 +379,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
                   type="text"
                   value={deviceName}
                   onChange={(e) => setDeviceName(e.target.value)}
-                  placeholder="e.g. iPhone 15 Pro - Turn 3"
+                  placeholder="e.g. Mobile Phone - Finish Gate"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-cyan-500 transition-colors placeholder:text-slate-600"
                 />
               </div>
@@ -316,7 +394,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
                 }}
                 className="w-1/3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors cursor-pointer"
               >
-                Back
+                Change Code
               </button>
 
               <button

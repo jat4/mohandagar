@@ -3,6 +3,7 @@ import { Race, TimingEvent } from '../../types/race';
 import { calculateRaceStatistics, formatDistance, formatTimeMs } from '../../utils/raceCalculations';
 import { PaceSpeedCharts } from './PaceSpeedCharts';
 import { ActivityExportCard } from './ActivityExportCard';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { 
   Trophy, 
   Timer, 
@@ -16,8 +17,7 @@ import {
   RotateCcw,
   ArrowLeft,
   Calendar,
-  User,
-  Hash
+  User
 } from 'lucide-react';
 
 interface RaceActivitySummaryProps {
@@ -34,6 +34,7 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
   onResetRace
 }) => {
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const stats = calculateRaceStatistics(race, events);
 
   return (
@@ -58,14 +59,9 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
                 {race.name}
               </h1>
               <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-400 mt-0.5">
-                <span className="flex items-center gap-1 text-slate-200">
+                <span className="flex items-center gap-1 text-slate-200 font-bold">
                   <User className="w-3.5 h-3.5 text-cyan-400" />
                   {race.runnerName}
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Hash className="w-3.5 h-3.5 text-slate-500" />
-                  Bib #{race.runnerBib}
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
@@ -80,11 +76,7 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
         <div className="flex items-center gap-3">
           {onResetRace && (
             <button
-              onClick={() => {
-                if (confirm('Reset race timing and clear all recorded splits for a new run?')) {
-                  onResetRace();
-                }
-              }}
+              onClick={() => setShowResetConfirm(true)}
               className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-xs flex items-center gap-2 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
@@ -101,6 +93,20 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
           </button>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        title="Reset Race Timings?"
+        message="This will reset the race clock to READY status and clear all recorded checkpoint splits. Are you sure you want to proceed?"
+        confirmText="Reset Race"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={() => {
+          setShowResetConfirm(false);
+          if (onResetRace) onResetRace();
+        }}
+        onCancel={() => setShowResetConfirm(false)}
+      />
 
       {/* Export Card Toggle Section */}
       {showExportModal && (

@@ -1,7 +1,9 @@
 {
   "name": "Multi-Checkpoint Runner Stopwatch",
   "description": "Professional distributed multi-device runner stopwatch and race timing system with cloud synchronization, arbitrary checkpoints, pacing analytics, and activity exports.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "camera"
+  ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]

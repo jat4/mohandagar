@@ -21,6 +21,7 @@ import {
   TimingEventType 
 } from '../types/race';
 import { generateJoinCode } from '../utils/raceCalculations';
+import { TimeSyncService } from './timeSyncService';
 
 export class RaceService {
   /**
@@ -45,7 +46,8 @@ export class RaceService {
       throw new Error('You must be signed in to create a race.');
     }
 
-    const raceId = `race_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = TimeSyncService.now();
+    const raceId = `race_${now}_${Math.random().toString(36).substring(2, 7)}`;
     
     // Build checkpoints with unique IDs and unique Join Codes
     const checkpoints: Checkpoint[] = input.checkpoints
@@ -53,7 +55,7 @@ export class RaceService {
       .map((cp, idx) => {
         const joinCode = generateJoinCode();
         return {
-          id: `cp_${idx + 1}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+          id: `cp_${idx + 1}_${now}_${Math.random().toString(36).substring(2, 5)}`,
           order: idx + 1,
           name: cp.name.trim() || `Checkpoint ${idx + 1}`,
           distanceMeters: cp.distanceMeters,
@@ -63,12 +65,11 @@ export class RaceService {
         };
       });
 
-    const now = Date.now();
-    const race: Race = {
+      const race: Race = {
       id: raceId,
       name: input.name.trim(),
       runnerName: input.runnerName.trim(),
-      runnerBib: input.runnerBib?.trim() || '101',
+      runnerBib: input.runnerBib?.trim() || undefined,
       totalPlannedDistanceMeters: input.totalPlannedDistanceMeters,
       displayUnit: input.displayUnit || 'KILOMETERS',
       status: 'READY',
@@ -197,7 +198,7 @@ export class RaceService {
    * Authoritative Race Start
    */
   static async startRace(raceId: string): Promise<number> {
-    const startTimestamp = Date.now();
+    const startTimestamp = TimeSyncService.now();
     try {
       // 1. Update race status and start timestamp
       await updateDoc(doc(db, 'races', raceId), {
@@ -244,7 +245,7 @@ export class RaceService {
     deviceId: string;
     raceStartTimestamp: number;
   }): Promise<TimingEvent> {
-    const now = Date.now();
+    const now = TimeSyncService.now();
     const elapsedMs = Math.max(0, now - params.raceStartTimestamp);
     const eventId = `evt_${params.checkpointId}_${now}_${Math.random().toString(36).substring(2, 5)}`;
 
@@ -286,7 +287,7 @@ export class RaceService {
    * Finish Race manually by Host or Finish device
    */
   static async finishRace(raceId: string): Promise<void> {
-    const now = Date.now();
+    const now = TimeSyncService.now();
     try {
       await updateDoc(doc(db, 'races', raceId), {
         status: 'FINISHED',
@@ -302,7 +303,7 @@ export class RaceService {
    * Reset or Cancel Race
    */
   static async resetRace(raceId: string): Promise<void> {
-    const now = Date.now();
+    const now = TimeSyncService.now();
     try {
       await updateDoc(doc(db, 'races', raceId), {
         status: 'READY',
@@ -328,7 +329,7 @@ export class RaceService {
     sessionId: string,
     data: Partial<StaffSession>
   ): Promise<void> {
-    const now = Date.now();
+    const now = TimeSyncService.now();
     try {
       const sessionRef = doc(db, 'races', raceId, 'staffSessions', sessionId);
       await setDoc(
@@ -364,7 +365,7 @@ export class RaceService {
    * Update Race Checkpoints (before race start)
    */
   static async updateRaceCheckpoints(raceId: string, checkpoints: Checkpoint[]): Promise<void> {
-    const now = Date.now();
+    const now = TimeSyncService.now();
     try {
       await updateDoc(doc(db, 'races', raceId), {
         checkpoints,
@@ -376,15 +377,72 @@ export class RaceService {
   }
 
   /**
-   * Delete Race and Associated Join Codes
+   * Subscribe to list of races created by Host (History)
+   */
+  static subscribeToHostRaces(
+    hostUid: string | undefined,
+    onUpdate: (races: Race[]) => void,
+    onError?: (err: any) => void
+  ): () => void {
+    const racesRef = collection(db, 'races');
+    const q = hostUid
+      ? query(racesRef, where('hostUid', '==', hostUid), orderBy('createdAt', 'desc'))
+      : query(racesRef, orderBy('createdAt', 'desc'));
+
+    return onSnapshot(
+      q,
+      (snap) => {
+        const races: Race[] = [];
+        snap.forEach((d) => {
+          races.push(d.data() as Race);
+        });
+        onUpdate(races);
+      },
+      (error) => {
+        console.warn('Host races query warning:', error);
+        // Fallback without orderBy index if needed
+        const simpleQ = hostUid
+          ? query(racesRef, where('hostUid', '==', hostUid))
+          : racesRef;
+        return onSnapshot(
+          simpleQ,
+          (s) => {
+            const list: Race[] = [];
+            s.forEach((d) => list.push(d.data() as Race));
+            list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            onUpdate(list);
+          },
+          (err2) => {
+            if (onError) onError(err2);
+          }
+        );
+      }
+    );
+  }
+
+  /**
+   * Delete Race and all its subcollections and join codes permanently
    */
   static async deleteRace(raceId: string, joinCodes: string[] = []): Promise<void> {
     try {
-      await deleteDoc(doc(db, 'races', raceId));
+      // 1. Delete all events subcollection documents
+      const eventsSnap = await getDocs(collection(db, 'races', raceId, 'events'));
+      const eventDeletions = eventsSnap.docs.map((d) => deleteDoc(d.ref).catch(() => {}));
+      await Promise.all(eventDeletions);
+
+      // 2. Delete all staffSessions subcollection documents
+      const sessionsSnap = await getDocs(collection(db, 'races', raceId, 'staffSessions'));
+      const sessionDeletions = sessionsSnap.docs.map((d) => deleteDoc(d.ref).catch(() => {}));
+      await Promise.all(sessionDeletions);
+
+      // 3. Delete joinCodes mappings
       const codeDeletions = joinCodes.map((code) =>
         deleteDoc(doc(db, 'joinCodes', code.toUpperCase())).catch(() => {})
       );
       await Promise.all(codeDeletions);
+
+      // 4. Delete root race document
+      await deleteDoc(doc(db, 'races', raceId));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `races/${raceId}`);
     }

@@ -6,6 +6,7 @@ import {
   Checkpoint 
 } from '../../types/race';
 import { RaceService } from '../../services/raceService';
+import { useTimeSync } from '../../services/timeSyncService';
 import { 
   calculateRaceStatistics, 
   formatDistance, 
@@ -30,7 +31,8 @@ import {
   Trophy,
   ArrowRight,
   TrendingUp,
-  Activity
+  Activity,
+  RefreshCw
 } from 'lucide-react';
 
 interface RaceLiveDashboardProps {
@@ -53,6 +55,8 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
   const [selectedQrCheckpoint, setSelectedQrCheckpoint] = useState<Checkpoint | null>(null);
   const [starting, setStarting] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const timeSync = useTimeSync();
+  const [recalibrating, setRecalibrating] = useState(false);
 
   const stats = calculateRaceStatistics(race, events);
   const isRunning = race.status === 'RUNNING';
@@ -179,8 +183,32 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
 
         {/* Center Live Stopwatch */}
         <div className="my-8 text-center">
-          <div className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-2">
-            Synchronized Race Clock
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">
+              Authoritative Cloud Synced Clock
+            </span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-[11px] font-mono">
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                timeSync.isSynced ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+              }`} />
+              <span className="text-slate-300">
+                Sync: {timeSync.offsetMs >= 0 ? `+${timeSync.offsetMs}ms` : `${timeSync.offsetMs}ms`}
+              </span>
+              <span className="text-slate-600">•</span>
+              <span className="text-slate-400">{timeSync.rttMs}ms RTT</span>
+              <button
+                onClick={async () => {
+                  setRecalibrating(true);
+                  await timeSync.recalibrate();
+                  setRecalibrating(false);
+                }}
+                disabled={recalibrating}
+                title="Recalibrate clock offset with cloud time"
+                className="ml-1 text-cyan-400 hover:text-cyan-300 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${recalibrating ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </div>
           <RaceTimerClock
             startTimestamp={race.startTimestamp}
@@ -285,9 +313,13 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                   >
                     <td className="py-3.5 px-4 font-bold text-slate-100">
                       <div>{row.checkpoint.name}</div>
-                      {row.checkpoint.type === 'SPLIT_AND_FINISH' && (
-                        <span className="text-[10px] text-rose-400 font-semibold uppercase">
-                          • Split + Finish Allowed
+                      {row.checkpoint.type === 'SPLIT_AND_FINISH' ? (
+                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-rose-950/80 text-rose-300 border border-rose-500/30 font-semibold uppercase">
+                          🏁 Official Finish
+                        </span>
+                      ) : (
+                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 font-semibold uppercase">
+                          ⚡ Intermediate Split
                         </span>
                       )}
                     </td>

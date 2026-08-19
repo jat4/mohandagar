@@ -27,7 +27,7 @@ export interface Race {
   id: string;
   name: string;
   runnerName: string;
-  runnerBib: string;
+  runnerBib?: string;
   totalPlannedDistanceMeters: number;
   displayUnit: DistanceUnit;
   status: RaceStatus;
@@ -122,7 +122,7 @@ export interface ProcessedCheckpointResult {
 export interface RaceStatistics {
   raceName: string;
   runnerName: string;
-  runnerBib: string;
+  runnerBib?: string;
   dateFormatted: string;
   status: RaceStatus;
   totalPlannedDistanceMeters: number;

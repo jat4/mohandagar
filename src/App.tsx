@@ -26,7 +26,17 @@ import {
   Share2
 } from 'lucide-react';
 
+import { ToastProvider } from './context/ToastContext';
+
 export default function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
+  );
+}
+
+function AppContent() {
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => parseCurrentRoute());
   const [copiedUrl, setCopiedUrl] = useState(false);
 

@@ -109,7 +109,7 @@ export const ActivityExportCard: React.FC<ActivityExportCardProps> = ({
               {stats.raceName}
             </h2>
             <div className="text-sm text-slate-400 font-mono mt-1">
-              Runner: <strong className="text-slate-100">{stats.runnerName}</strong> (Bib #{stats.runnerBib}) • Date: <span className="text-slate-300">{stats.dateFormatted}</span>
+              Runner: <strong className="text-slate-100">{stats.runnerName}</strong> • Date: <span className="text-slate-300">{stats.dateFormatted}</span>
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { formatTimeMs } from '../../utils/raceCalculations';
+import { TimeSyncService } from '../../services/timeSyncService';
 
 interface RaceTimerClockProps {
   startTimestamp: number | null | undefined;
@@ -19,7 +20,7 @@ export const RaceTimerClock: React.FC<RaceTimerClockProps> = ({
   const [elapsedMs, setElapsedMs] = useState<number>(() => {
     if (!startTimestamp) return 0;
     if (finishTimestamp) return Math.max(0, finishTimestamp - startTimestamp);
-    return Math.max(0, Date.now() - startTimestamp);
+    return Math.max(0, TimeSyncService.now() - startTimestamp);
   });
 
   const animFrameRef = useRef<number | null>(null);
@@ -41,7 +42,7 @@ export const RaceTimerClock: React.FC<RaceTimerClockProps> = ({
     }
 
     const updateTimer = () => {
-      const now = Date.now();
+      const now = TimeSyncService.now();
       setElapsedMs(Math.max(0, now - startTimestamp));
       animFrameRef.current = requestAnimationFrame(updateTimer);
     };

@@ -6,6 +6,7 @@ import {
   StaffSession 
 } from '../../types/race';
 import { RaceService } from '../../services/raceService';
+import { useTimeSync } from '../../services/timeSyncService';
 import { formatDistance, formatTimeMs, calculateRaceStatistics } from '../../utils/raceCalculations';
 import { RaceTimerClock } from './RaceTimerClock';
 import { ActivityExportCard } from './ActivityExportCard';
@@ -22,7 +23,8 @@ import {
   ArrowLeft,
   ShieldCheck,
   Zap,
-  Info
+  Info,
+  RefreshCw
 } from 'lucide-react';
 
 interface CheckpointStaffScreenProps {
@@ -49,6 +51,8 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showExport, setShowExport] = useState(false);
   const lastRecordedAtRef = useRef<number>(0);
+  const timeSync = useTimeSync();
+  const [recalibrating, setRecalibrating] = useState(false);
 
   const sessionId = useRef(`session_${checkpoint.id}_${Date.now()}`).current;
 
@@ -258,9 +262,29 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
 
       {/* Center Live Stopwatch Block */}
       <div className="my-6 text-center space-y-3">
-        <div className="text-xs font-mono text-slate-400 uppercase tracking-widest flex items-center justify-center gap-1.5">
-          <Timer className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Live Synchronized Race Time</span>
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-xs font-mono text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <Timer className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Synchronized Race Time</span>
+          </span>
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-400">
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              timeSync.isSynced ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+            }`} />
+            <span>Sync: {timeSync.offsetMs >= 0 ? `+${timeSync.offsetMs}ms` : `${timeSync.offsetMs}ms`}</span>
+            <button
+              onClick={async () => {
+                setRecalibrating(true);
+                await timeSync.recalibrate();
+                setRecalibrating(false);
+              }}
+              disabled={recalibrating}
+              title="Calibrate device clock"
+              className="text-cyan-400 hover:text-cyan-300 cursor-pointer disabled:opacity-50 ml-0.5"
+            >
+              <RefreshCw className={`w-2.5 h-2.5 ${recalibrating ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 rounded-3xl bg-slate-900/90 border border-cyan-500/20 shadow-2xl shadow-cyan-500/5">
@@ -303,29 +327,45 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
       <div className="space-y-3">
         {isRunning && (
           <div className="space-y-3">
-            {/* Big SPLIT Button */}
-            <button
-              onClick={handleRecordSplit}
-              disabled={submitting || hasRecorded}
-              className={`w-full py-6 rounded-2xl font-mono text-xl sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer ${
-                hasRecorded
-                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                  : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-cyan-500/30 active:scale-[0.98]'
-              }`}
-            >
-              <Zap className="w-6 h-6" />
-              <span>{hasRecorded ? 'SPLIT RECORDED' : 'RECORD SPLIT'}</span>
-            </button>
+            {/* If checkpoint is Finish Gate: Show ONLY Big Red Finish Button */}
+            {checkpoint.type === 'SPLIT_AND_FINISH' ? (
+              <button
+                onClick={handleRecordFinish}
+                disabled={submitting || hasRecorded}
+                className={`w-full py-6 rounded-2xl font-mono text-xl sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer ${
+                  hasRecorded
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                    : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-600/30 active:scale-[0.98]'
+                }`}
+              >
+                <Flag className="w-6 h-6" />
+                <span>{hasRecorded ? 'FINISH RECORDED' : 'RECORD OFFICIAL FINISH'}</span>
+              </button>
+            ) : (
+              /* If checkpoint is Intermediate Split: Show ONLY Big Cyan Split Button */
+              <button
+                onClick={handleRecordSplit}
+                disabled={submitting || hasRecorded}
+                className={`w-full py-6 rounded-2xl font-mono text-xl sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer ${
+                  hasRecorded
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                    : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-cyan-500/30 active:scale-[0.98]'
+                }`}
+              >
+                <Zap className="w-6 h-6" />
+                <span>{hasRecorded ? 'SPLIT RECORDED' : 'RECORD SPLIT'}</span>
+              </button>
+            )}
 
-            {/* Optional FINISH Button if allowed */}
-            {isFinishPermitted && (
+            {/* If user is Host viewing on phone, allow emergency Host Finish trigger if needed */}
+            {isHost && checkpoint.type === 'SPLIT' && (
               <button
                 onClick={handleRecordFinish}
                 disabled={submitting}
-                className="w-full py-4 rounded-2xl font-mono text-base sm:text-lg font-bold bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 active:scale-[0.98] transition-all cursor-pointer"
+                className="w-full py-3 rounded-xl font-mono text-xs font-bold bg-slate-800 hover:bg-slate-700 text-rose-400 border border-rose-900/50 flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
-                <Flag className="w-5 h-5" />
-                <span>RECORD OFFICIAL FINISH</span>
+                <Flag className="w-3.5 h-3.5" />
+                <span>Host Override: Stop & Finish Race</span>
               </button>
             )}
           </div>

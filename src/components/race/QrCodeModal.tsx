@@ -22,9 +22,9 @@ export const QrCodeModal: React.FC<QrCodeModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Use the actual application URL (not localhost)
+  // Use the direct hash route format for instant deep-linking
   const currentOrigin = window.location.origin;
-  const joinUrl = `${currentOrigin}?join=${encodeURIComponent(checkpoint.joinCode)}`;
+  const joinUrl = `${currentOrigin}/#/join/${encodeURIComponent(checkpoint.joinCode)}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(joinUrl);

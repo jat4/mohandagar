@@ -1,41 +1,44 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect } from 'react';
 import { 
   Race, 
   Checkpoint, 
+  CheckpointType, 
   TimingEvent, 
   StaffSession, 
-  DistanceUnit, 
-  CheckpointType 
+  DistanceUnit 
 } from '../../types/race';
 import { RaceService } from '../../services/raceService';
-import { formatDistance } from '../../utils/raceCalculations';
+import { signInWithGoogle, signOutUser, auth } from '../../lib/firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { RaceLiveDashboard } from './RaceLiveDashboard';
-import { RaceActivitySummary } from './RaceActivitySummary';
 import { CheckpointStaffScreen } from './CheckpointStaffScreen';
+import { RaceActivitySummary } from './RaceActivitySummary';
+import { RaceHistoryView } from './RaceHistoryView';
+import { ConfirmModal } from '../common/ConfirmModal';
+import { useToast } from '../../context/ToastContext';
 import { 
   Plus, 
-  Trash2, 
-  Play, 
   Sparkles, 
-  Flag, 
-  Layers, 
-  QrCode, 
-  User, 
-  Hash, 
-  Settings, 
+  Trash2, 
   ArrowUp, 
   ArrowDown, 
+  User, 
+  QrCode, 
+  Zap, 
   CheckCircle2, 
-  RotateCcw,
+  Timer, 
   LogOut,
-  Clock,
-  Timer,
-  Zap,
+  History,
   Activity,
-  ListOrdered
+  X,
+  Layers,
+  ChevronRight
 } from 'lucide-react';
-import { auth, signInWithGoogle, signOutUser } from '../../lib/firebase';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 
 interface HostDashboardProps {
   onJoinByCodeClicked: () => void;
@@ -47,9 +50,15 @@ interface HostDashboardProps {
 export const HostDashboard: React.FC<HostDashboardProps> = ({
   onJoinByCodeClicked,
   routeRaceId,
-  routeView = 'home',
+  routeView,
   onNavigateRoute
 }) => {
+  const { showToast } = useToast();
+
+  // Primary active tab
+  const [activeTab, setActiveTab] = useState<'CONTROLLER' | 'HISTORY'>('CONTROLLER');
+
+  // Authenticated Host
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -57,24 +66,26 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const [activeRace, setActiveRace] = useState<Race | null>(null);
   const [events, setEvents] = useState<TimingEvent[]>([]);
   const [staffSessions, setStaffSessions] = useState<StaffSession[]>([]);
-  const [viewMode, setViewMode] = useState<'CONTROLLER' | 'SUMMARY' | 'TIMING_AS_HOST'>(
-    routeView === 'summary' ? 'SUMMARY' : 'CONTROLLER'
-  );
+
+  // Historical races list
+  const [hostRaces, setHostRaces] = useState<Race[]>([]);
+
+  // View mode within Controller
+  const [viewMode, setViewMode] = useState<'CONTROLLER' | 'TIMING_AS_HOST' | 'SUMMARY'>('CONTROLLER');
   const [hostAssignedCheckpoint, setHostAssignedCheckpoint] = useState<Checkpoint | null>(null);
 
-  // Load race from route if provided
+  // Modal confirmation states
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  // Synchronize route
   useEffect(() => {
-    if (routeRaceId && activeRace?.id !== routeRaceId) {
+    if (routeRaceId && (!activeRace || activeRace.id !== routeRaceId)) {
       RaceService.getRace(routeRaceId).then((r) => {
-        if (r) {
-          setActiveRace(r);
-          setViewMode(routeView === 'summary' ? 'SUMMARY' : 'CONTROLLER');
-        }
+        if (r) setActiveRace(r);
       }).catch(console.error);
-    } else if (!routeRaceId && !activeRace) {
-      setViewMode('CONTROLLER');
     }
-  }, [routeRaceId, routeView]);
+  }, [routeRaceId]);
 
   useEffect(() => {
     if (routeView === 'summary') {
@@ -84,11 +95,10 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     }
   }, [routeView, activeRace?.id]);
 
-  // Create Race Form state
+  // Create Race Form state (BIB completely removed)
   const [showCreateWizard, setShowCreateWizard] = useState(false);
-  const [raceName, setRaceName] = useState('5K Time Trial Championship');
-  const [runnerName, setRunnerName] = useState('Rahul Verma');
-  const [runnerBib, setRunnerBib] = useState('101');
+  const [raceName, setRaceName] = useState('5K Time Trial');
+  const [runnerName, setRunnerName] = useState('Runner Name');
   const [totalPlannedDist, setTotalPlannedDist] = useState<number>(5000); // 5000m
   const [displayUnit, setDisplayUnit] = useState<DistanceUnit>('KILOMETERS');
 
@@ -100,11 +110,11 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     type: CheckpointType;
     assignedStaffName: string;
   }>>([
-    { id: '1', name: 'CP 1 (Turn 1)', distanceMeters: 1000, type: 'SPLIT', assignedStaffName: 'Rahul (Phone A)' },
-    { id: '2', name: 'CP 2 (Midpoint)', distanceMeters: 2000, type: 'SPLIT', assignedStaffName: 'Amit (Phone B)' },
-    { id: '3', name: 'CP 3 (Turn 3)', distanceMeters: 3000, type: 'SPLIT', assignedStaffName: 'Suresh (Phone C)' },
-    { id: '4', name: 'CP 4 (Final Loop)', distanceMeters: 4000, type: 'SPLIT', assignedStaffName: 'Pooja (Phone D)' },
-    { id: '5', name: 'FINISH GATE', distanceMeters: 5000, type: 'SPLIT_AND_FINISH', assignedStaffName: 'Host (Finish Line)' }
+    { id: '1', name: 'CP 1 (Turn 1)', distanceMeters: 1000, type: 'SPLIT', assignedStaffName: 'Phone A' },
+    { id: '2', name: 'CP 2 (Midpoint)', distanceMeters: 2000, type: 'SPLIT', assignedStaffName: 'Phone B' },
+    { id: '3', name: 'CP 3 (Turn 3)', distanceMeters: 3000, type: 'SPLIT', assignedStaffName: 'Phone C' },
+    { id: '4', name: 'CP 4 (Final Loop)', distanceMeters: 4000, type: 'SPLIT', assignedStaffName: 'Phone D' },
+    { id: '5', name: 'FINISH GATE', distanceMeters: 5000, type: 'SPLIT_AND_FINISH', assignedStaffName: 'Finish Line' }
   ]);
 
   const [creatingRace, setCreatingRace] = useState(false);
@@ -118,6 +128,18 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     });
     return () => unsub();
   }, []);
+
+  // Subscribe to host races history
+  useEffect(() => {
+    const unsub = RaceService.subscribeToHostRaces(
+      currentUser?.uid,
+      (races) => {
+        setHostRaces(races);
+      },
+      (err) => console.warn('History subscription note:', err)
+    );
+    return () => unsub();
+  }, [currentUser?.uid]);
 
   // Subscribe to active race changes
   useEffect(() => {
@@ -160,8 +182,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         { id: '1', name: 'Lap 1 (400m)', distanceMeters: 400, type: 'SPLIT', assignedStaffName: 'Phone A' },
         { id: '2', name: 'Lap 2 (800m)', distanceMeters: 800, type: 'SPLIT', assignedStaffName: 'Phone B' },
         { id: '3', name: 'Lap 3 (1200m)', distanceMeters: 1200, type: 'SPLIT', assignedStaffName: 'Phone C' },
-        { id: '4', name: 'Lap 4 / FINISH (1600m)', distanceMeters: 1600, type: 'SPLIT_AND_FINISH', assignedStaffName: 'Host' }
+        { id: '4', name: 'Lap 4 / FINISH (1600m)', distanceMeters: 1600, type: 'SPLIT_AND_FINISH', assignedStaffName: 'Finish Line' }
       ]);
+      showToast({ type: 'info', title: '1600m Template Loaded', message: 'Configured 4 track laps with finish gate.' });
     } else if (type === '10k_1km') {
       setRaceName('10K Road Time Trial');
       setTotalPlannedDist(10000);
@@ -175,6 +198,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
           assignedStaffName: ''
         }))
       );
+      showToast({ type: 'info', title: '10K Template Loaded', message: 'Configured 10 kilometer checkpoints.' });
     } else {
       setRaceName('5K Custom Time Trial');
       setTotalPlannedDist(5000);
@@ -187,6 +211,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         { id: '5', name: '3.75 km Loop', distanceMeters: 3750, type: 'SPLIT', assignedStaffName: '' },
         { id: '6', name: '5.0 km FINISH', distanceMeters: 5000, type: 'SPLIT_AND_FINISH', assignedStaffName: '' }
       ]);
+      showToast({ type: 'info', title: '5K Template Loaded', message: 'Configured 6 custom checkpoints.' });
     }
   };
 
@@ -207,7 +232,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
 
   const handleRemoveCheckpoint = (index: number) => {
     if (wizardCheckpoints.length <= 1) {
-      alert('A race requires at least one checkpoint or finish point.');
+      showToast({ type: 'warning', title: 'Cannot Delete', message: 'A race requires at least one checkpoint or finish gate.' });
       return;
     }
     const updated = [...wizardCheckpoints];
@@ -230,12 +255,12 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const handleCreateRace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
-      alert('Please sign in to create and manage a race.');
+      showToast({ type: 'error', title: 'Sign In Required', message: 'Please sign in with Google to create and host races.' });
       return;
     }
 
     if (wizardCheckpoints.length === 0) {
-      alert('Please add at least one checkpoint.');
+      showToast({ type: 'warning', title: 'Checkpoints Required', message: 'Please add at least one checkpoint or finish line.' });
       return;
     }
 
@@ -246,7 +271,6 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
       const created = await RaceService.createRace({
         name: raceName,
         runnerName,
-        runnerBib,
         totalPlannedDistanceMeters: totalPlannedDist,
         displayUnit,
         checkpoints: wizardCheckpoints.map((c) => ({
@@ -260,12 +284,16 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
       setActiveRace(created);
       setShowCreateWizard(false);
       setViewMode('CONTROLLER');
+      setActiveTab('CONTROLLER');
+      showToast({ type: 'success', title: 'Race Created!', message: `"${created.name}" is ready with ${created.checkpoints.length} checkpoint join codes.` });
+
       if (onNavigateRoute) {
         onNavigateRoute('live', created.id);
       }
     } catch (err: any) {
       console.error(err);
       setErrorMessage(err.message || 'Failed to create race.');
+      showToast({ type: 'error', title: 'Creation Failed', message: err.message || 'Failed to create race in cloud database.' });
     } finally {
       setCreatingRace(false);
     }
@@ -278,7 +306,25 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
 
   const handleResetRace = async () => {
     if (!activeRace) return;
-    await RaceService.resetRace(activeRace.id);
+    try {
+      await RaceService.resetRace(activeRace.id);
+      showToast({ type: 'success', title: 'Race Reset', message: 'Race clock has been reset to READY and splits cleared.' });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'Reset Failed', message: err.message || 'Could not reset race.' });
+    }
+  };
+
+  const handleDeleteRacePermanently = async (raceId: string, joinCodes: string[]) => {
+    try {
+      await RaceService.deleteRace(raceId, joinCodes);
+      showToast({ type: 'success', title: 'Race Permanently Deleted', message: 'All race timings, splits, and join codes were erased.' });
+      if (activeRace?.id === raceId) {
+        setActiveRace(null);
+        if (onNavigateRoute) onNavigateRoute('home');
+      }
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'Delete Failed', message: err.message || 'Failed to delete race from database.' });
+    }
   };
 
   // If Host is timing a specific checkpoint
@@ -316,10 +362,10 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   return (
     <div className="space-y-8 max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       
-      {/* Host Header & Authentication Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-5 sm:p-6 rounded-2xl">
+      {/* Top Header & Authentication Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-cyan-950 border border-cyan-500/40 text-cyan-400">
+          <div className="p-2.5 rounded-2xl bg-cyan-950 border border-cyan-500/40 text-cyan-400">
             <Zap className="w-6 h-6" />
           </div>
           <div>
@@ -327,20 +373,24 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
               Host Race Controller
             </h1>
             <p className="text-xs font-mono text-slate-400">
-              Multi-device synchronized runner timing engine
+              Multi-device synchronized runner timing & race history
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {currentUser ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-slate-300">
-                Host: <strong className="text-cyan-300">{currentUser.displayName || currentUser.email}</strong>
+            <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+              <User className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-xs font-mono text-slate-200">
+                {currentUser.displayName || currentUser.email?.split('@')[0]}
               </span>
               <button
-                onClick={() => signOutUser()}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400 text-xs font-mono transition-colors cursor-pointer"
+                onClick={() => {
+                  signOutUser();
+                  showToast({ type: 'info', title: 'Signed Out', message: 'You have signed out of Host mode.' });
+                }}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer ml-1"
                 title="Sign Out"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -366,7 +416,10 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
 
           {!activeRace && (
             <button
-              onClick={() => setShowCreateWizard(true)}
+              onClick={() => {
+                setShowCreateWizard(true);
+                setActiveTab('CONTROLLER');
+              }}
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs flex items-center gap-1.5 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -376,370 +429,433 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         </div>
       </div>
 
-      {/* Active Race Controller View */}
-      {activeRace ? (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-mono text-slate-400">
-            <span>
-              Managing: <strong className="text-slate-200">{activeRace.name}</strong> • Checkpoints: <strong className="text-cyan-300">{activeRace.checkpoints.length}</strong>
-            </span>
+      {/* Primary Section Tabs: Live Controller vs Race History */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+        <button
+          onClick={() => setActiveTab('CONTROLLER')}
+          className={`px-4 py-2 rounded-xl font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'CONTROLLER'
+              ? 'bg-slate-800 text-cyan-300 border border-cyan-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <Activity className="w-4 h-4" />
+          <span>Live Controller {activeRace ? `(${activeRace.name})` : ''}</span>
+        </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
+        <button
+          onClick={() => setActiveTab('HISTORY')}
+          className={`px-4 py-2 rounded-xl font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'HISTORY'
+              ? 'bg-slate-800 text-cyan-300 border border-cyan-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Race History ({hostRaces.length})</span>
+        </button>
+      </div>
+
+      {/* TAB 1: Race History View */}
+      {activeTab === 'HISTORY' && (
+        <RaceHistoryView
+          races={hostRaces}
+          currentUserId={currentUser?.uid}
+          onSelectRace={(race) => {
+            setActiveRace(race);
+            setActiveTab('CONTROLLER');
+            setViewMode('CONTROLLER');
+            if (onNavigateRoute) onNavigateRoute('live', race.id);
+          }}
+          onViewResults={(race) => {
+            setActiveRace(race);
+            setActiveTab('CONTROLLER');
+            setViewMode('SUMMARY');
+            if (onNavigateRoute) onNavigateRoute('summary', race.id);
+          }}
+          onDeleteRace={handleDeleteRacePermanently}
+          onBackToDashboard={() => setActiveTab('CONTROLLER')}
+        />
+      )}
+
+      {/* TAB 2: Controller & Active Race View */}
+      {activeTab === 'CONTROLLER' && (
+        <>
+          {activeRace ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="flex items-center justify-between bg-slate-950 p-3.5 rounded-2xl border border-slate-800 text-xs font-mono text-slate-400">
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Active Session: <strong className="text-slate-200">{activeRace.name}</strong> • Runner: <strong className="text-cyan-300">{activeRace.runnerName}</strong></span>
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setViewMode('SUMMARY');
+                      if (onNavigateRoute && activeRace) onNavigateRoute('summary', activeRace.id);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/30 text-xs font-mono transition-colors cursor-pointer"
+                  >
+                    View Results & Analytics
+                  </button>
+
+                  <button
+                    onClick={() => setShowCloseConfirm(true)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs font-mono transition-colors cursor-pointer border border-slate-800"
+                  >
+                    Close Race
+                  </button>
+                </div>
+              </div>
+
+              <RaceLiveDashboard
+                race={activeRace}
+                events={events}
+                staffSessions={staffSessions}
+                onOpenSummary={() => {
                   setViewMode('SUMMARY');
                   if (onNavigateRoute && activeRace) onNavigateRoute('summary', activeRace.id);
                 }}
-                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono transition-colors cursor-pointer"
-              >
-                View Activity Summary
-              </button>
+                onAssignSelfToCheckpoint={handleAssignSelfToCheckpoint}
+                onResetRace={handleResetRace}
+              />
 
-              <button
-                onClick={() => {
-                  if (confirm('Close current race from host controller? (Race state remains saved in Firestore)')) {
-                    setActiveRace(null);
-                    if (onNavigateRoute) onNavigateRoute('home');
-                  }
+              {/* Close Race Confirmation Modal */}
+              <ConfirmModal
+                isOpen={showCloseConfirm}
+                title="Close Active Race View?"
+                message="This will close the live controller screen. The race and all recorded timings will remain safely stored in your Race History for future review."
+                confirmText="Close Screen"
+                cancelText="Keep Open"
+                variant="info"
+                onConfirm={() => {
+                  setShowCloseConfirm(false);
+                  setActiveRace(null);
+                  if (onNavigateRoute) onNavigateRoute('home');
                 }}
-                className="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-mono transition-colors cursor-pointer"
-              >
-                Close Race
-              </button>
+                onCancel={() => setShowCloseConfirm(false)}
+              />
             </div>
-          </div>
-
-          <RaceLiveDashboard
-            race={activeRace}
-            events={events}
-            staffSessions={staffSessions}
-            onOpenSummary={() => {
-              setViewMode('SUMMARY');
-              if (onNavigateRoute && activeRace) onNavigateRoute('summary', activeRace.id);
-            }}
-            onAssignSelfToCheckpoint={handleAssignSelfToCheckpoint}
-            onResetRace={handleResetRace}
-          />
-        </div>
-      ) : showCreateWizard ? (
-        /* Create Race Wizard Form */
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl animate-fadeIn">
-          
-          <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-800">
-            <div>
-              <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-cyan-400" />
-                <span>Configure Race & Checkpoints</span>
-              </h2>
-              <p className="text-xs text-slate-400 font-mono mt-0.5">
-                Set race distance and add unlimited custom checkpoints at any increasing distance
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowCreateWizard(false)}
-              className="text-xs font-mono text-slate-400 hover:text-slate-200 cursor-pointer"
-            >
-              Cancel
-            </button>
-          </div>
-
-          {/* Quick Preset Templates */}
-          <div className="mb-6 p-4 rounded-2xl bg-slate-950 border border-slate-800">
-            <div className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
-              Quick Course Templates
-            </div>
-            <div className="flex flex-wrap gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleLoadTemplate('5k_500m')}
-                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 text-xs font-mono transition-colors cursor-pointer"
-              >
-                5K Custom (500m, 1km, 1.5km, 2.5km, 3.75km, 5km)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLoadTemplate('1600m_400m')}
-                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 text-xs font-mono transition-colors cursor-pointer"
-              >
-                1600m Track (400m, 800m, 1200m, 1600m)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLoadTemplate('10k_1km')}
-                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 text-xs font-mono transition-colors cursor-pointer"
-              >
-                10K Standard (1km Splits)
-              </button>
-            </div>
-          </div>
-
-          {errorMessage && (
-            <div className="mb-6 p-4 rounded-xl bg-rose-950/70 border border-rose-500/40 text-rose-300 text-xs font-mono">
-              {errorMessage}
-            </div>
-          )}
-
-          <form onSubmit={handleCreateRace} className="space-y-6">
-            
-            {/* Race General Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-mono text-slate-400 mb-1.5">
-                  Race / Event Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={raceName}
-                  onChange={(e) => setRaceName(e.target.value)}
-                  placeholder="e.g. 5K Time Trial"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-cyan-500 font-mono transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono text-slate-400 mb-1.5">
-                  Runner Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={runnerName}
-                  onChange={(e) => setRunnerName(e.target.value)}
-                  placeholder="e.g. Rahul Verma"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-cyan-500 font-mono transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono text-slate-400 mb-1.5">
-                  Bib Number
-                </label>
-                <input
-                  type="text"
-                  value={runnerBib}
-                  onChange={(e) => setRunnerBib(e.target.value)}
-                  placeholder="e.g. 101"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-cyan-500 font-mono transition-colors"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-mono text-slate-400 mb-1.5">
-                  Total Planned Distance (Meters) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min={100}
-                  step={10}
-                  value={totalPlannedDist}
-                  onChange={(e) => setTotalPlannedDist(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-cyan-300 font-mono text-sm focus:outline-none focus:border-cyan-500 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono text-slate-400 mb-1.5">
-                  Display Distance Unit
-                </label>
-                <select
-                  value={displayUnit}
-                  onChange={(e) => setDisplayUnit(e.target.value as DistanceUnit)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 font-mono text-sm focus:outline-none focus:border-cyan-500 transition-colors"
-                >
-                  <option value="KILOMETERS">Kilometers (km)</option>
-                  <option value="METERS">Meters (m)</option>
-                  <option value="MILES">Miles (mi)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Unlimited Checkpoints Builder */}
-            <div className="pt-4 border-t border-slate-800">
-              <div className="flex items-center justify-between mb-4">
+          ) : showCreateWizard ? (
+            /* Create Race Wizard Form */
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl animate-fadeIn">
+              
+              <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-800">
                 <div>
-                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                    <ListOrdered className="w-4 h-4 text-cyan-400" />
-                    <span>Checkpoints List ({wizardCheckpoints.length})</span>
-                  </h3>
-                  <p className="text-xs text-slate-400 font-mono">
-                    Must be in ascending distance order. Use meters internally.
+                  <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-cyan-400" />
+                    <span>Configure Race & Checkpoints</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">
+                    Set race distance and add unlimited custom checkpoints at any increasing distance
                   </p>
                 </div>
 
                 <button
-                  type="button"
-                  onClick={handleAddCheckpoint}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+                  onClick={() => setShowCreateWizard(false)}
+                  className="text-xs font-mono text-slate-400 hover:text-slate-200 cursor-pointer p-1.5 rounded-lg hover:bg-slate-800"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Checkpoint</span>
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="space-y-3">
-                {wizardCheckpoints.map((cp, idx) => (
-                  <div
-                    key={cp.id || idx}
-                    className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3"
+              {/* Quick Preset Templates */}
+              <div className="mb-6 p-4 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
+                  Quick Course Templates
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleLoadTemplate('5k_500m')}
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 text-xs font-mono transition-colors cursor-pointer"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-slate-900 border border-slate-700 text-slate-400 flex items-center justify-center text-xs font-mono font-bold">
-                        {idx + 1}
-                      </span>
-                      <input
-                        type="text"
-                        required
-                        value={cp.name}
-                        onChange={(e) => {
-                          const updated = [...wizardCheckpoints];
-                          updated[idx].name = e.target.value;
-                          setWizardCheckpoints(updated);
-                        }}
-                        placeholder="Checkpoint Name"
-                        className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono focus:outline-none focus:border-cyan-500 w-40 sm:w-48"
-                      />
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-mono text-slate-500">Meters:</span>
-                        <input
-                          type="number"
-                          required
-                          min={1}
-                          step={1}
-                          value={cp.distanceMeters}
-                          onChange={(e) => {
-                            const updated = [...wizardCheckpoints];
-                            updated[idx].distanceMeters = Number(e.target.value);
-                            setWizardCheckpoints(updated);
-                          }}
-                          className="w-24 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-cyan-300 text-xs font-mono focus:outline-none focus:border-cyan-500"
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-mono text-slate-500">Type:</span>
-                        <select
-                          value={cp.type}
-                          onChange={(e) => {
-                            const updated = [...wizardCheckpoints];
-                            updated[idx].type = e.target.value as CheckpointType;
-                            setWizardCheckpoints(updated);
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500"
-                        >
-                          <option value="SPLIT">SPLIT</option>
-                          <option value="SPLIT_AND_FINISH">SPLIT + FINISH</option>
-                        </select>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-mono text-slate-500">Staff:</span>
-                        <input
-                          type="text"
-                          value={cp.assignedStaffName}
-                          onChange={(e) => {
-                            const updated = [...wizardCheckpoints];
-                            updated[idx].assignedStaffName = e.target.value;
-                            setWizardCheckpoints(updated);
-                          }}
-                          placeholder="Staff Name"
-                          className="w-28 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500"
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleMoveCheckpoint(idx, 'UP')}
-                          disabled={idx === 0}
-                          className="p-1.5 text-slate-500 hover:text-slate-300 disabled:opacity-30 cursor-pointer"
-                          title="Move Up"
-                        >
-                          <ArrowUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveCheckpoint(idx, 'DOWN')}
-                          disabled={idx === wizardCheckpoints.length - 1}
-                          className="p-1.5 text-slate-500 hover:text-slate-300 disabled:opacity-30 cursor-pointer"
-                          title="Move Down"
-                        >
-                          <ArrowDown className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCheckpoint(idx)}
-                          className="p-1.5 text-slate-500 hover:text-rose-400 cursor-pointer"
-                          title="Delete Checkpoint"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                  </div>
-                ))}
+                    5K Time Trial (6 Checkpoints)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLoadTemplate('1600m_400m')}
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 text-xs font-mono transition-colors cursor-pointer"
+                  >
+                    1600m Track (400m Laps)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLoadTemplate('10k_1km')}
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 text-xs font-mono transition-colors cursor-pointer"
+                  >
+                    10K Standard (1km Splits)
+                  </button>
+                </div>
               </div>
+
+              {errorMessage && (
+                <div className="mb-6 p-4 rounded-xl bg-rose-950/70 border border-rose-500/40 text-rose-300 text-xs font-mono">
+                  {errorMessage}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateRace} className="space-y-6">
+                
+                {/* Race General Details (BIB REMOVED) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-mono text-slate-400 mb-1.5">
+                      Race / Event Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={raceName}
+                      onChange={(e) => setRaceName(e.target.value)}
+                      placeholder="e.g. 5K Time Trial"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-cyan-500 font-mono transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-mono text-slate-400 mb-1.5">
+                      Runner Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={runnerName}
+                      onChange={(e) => setRunnerName(e.target.value)}
+                      placeholder="e.g. Rahul Verma"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-cyan-500 font-mono transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-mono text-slate-400 mb-1.5">
+                      Total Planned Distance (Meters) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={100}
+                      step={10}
+                      value={totalPlannedDist}
+                      onChange={(e) => setTotalPlannedDist(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-cyan-300 font-mono text-sm focus:outline-none focus:border-cyan-500 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-mono text-slate-400 mb-1.5">
+                      Display Distance Unit
+                    </label>
+                    <select
+                      value={displayUnit}
+                      onChange={(e) => setDisplayUnit(e.target.value as DistanceUnit)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 font-mono text-sm focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer"
+                    >
+                      <option value="KILOMETERS">Kilometers (km)</option>
+                      <option value="METERS">Meters (m)</option>
+                      <option value="MILES">Miles (mi)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Checkpoints Configuration */}
+                <div className="pt-4 border-t border-slate-800">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-200 font-mono">
+                        Checkpoints & Timing Points ({wizardCheckpoints.length})
+                      </h3>
+                      <p className="text-[11px] font-mono text-slate-500">
+                        Order matters: Staff will record splits as the runner passes each checkpoint
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddCheckpoint}
+                      className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Checkpoint</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {wizardCheckpoints.map((cp, idx) => (
+                      <div
+                        key={cp.id}
+                        className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 font-mono font-bold flex items-center justify-center text-xs">
+                            {idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            required
+                            value={cp.name}
+                            onChange={(e) => {
+                              const updated = [...wizardCheckpoints];
+                              updated[idx].name = e.target.value;
+                              setWizardCheckpoints(updated);
+                            }}
+                            placeholder="Checkpoint Name"
+                            className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono focus:outline-none focus:border-cyan-500 w-40 sm:w-48"
+                          />
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-mono text-slate-500">Meters:</span>
+                            <input
+                              type="number"
+                              required
+                              min={1}
+                              step={1}
+                              value={cp.distanceMeters}
+                              onChange={(e) => {
+                                const updated = [...wizardCheckpoints];
+                                updated[idx].distanceMeters = Number(e.target.value);
+                                setWizardCheckpoints(updated);
+                              }}
+                              className="w-24 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-cyan-300 text-xs font-mono focus:outline-none focus:border-cyan-500"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-mono text-slate-500">Type:</span>
+                            <select
+                              value={cp.type}
+                              onChange={(e) => {
+                                const updated = [...wizardCheckpoints];
+                                updated[idx].type = e.target.value as CheckpointType;
+                                setWizardCheckpoints(updated);
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500 cursor-pointer"
+                            >
+                              <option value="SPLIT">SPLIT ONLY</option>
+                              <option value="SPLIT_AND_FINISH">FINISH GATE</option>
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-mono text-slate-500">Staff:</span>
+                            <input
+                              type="text"
+                              value={cp.assignedStaffName}
+                              onChange={(e) => {
+                                const updated = [...wizardCheckpoints];
+                                updated[idx].assignedStaffName = e.target.value;
+                                setWizardCheckpoints(updated);
+                              }}
+                              placeholder="Staff Name"
+                              className="w-28 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveCheckpoint(idx, 'UP')}
+                              disabled={idx === 0}
+                              className="p-1.5 text-slate-500 hover:text-slate-300 disabled:opacity-30 cursor-pointer"
+                              title="Move Up"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveCheckpoint(idx, 'DOWN')}
+                              disabled={idx === wizardCheckpoints.length - 1}
+                              className="p-1.5 text-slate-500 hover:text-slate-300 disabled:opacity-30 cursor-pointer"
+                              title="Move Down"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCheckpoint(idx)}
+                              className="p-1.5 text-slate-500 hover:text-rose-400 cursor-pointer"
+                              title="Delete Checkpoint"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-slate-800 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateWizard(false)}
+                    className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={creatingRace}
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm shadow-lg shadow-cyan-500/20 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {creatingRace ? 'Creating Race & Join Codes...' : 'Launch Race Controller'}
+                  </button>
+                </div>
+
+              </form>
             </div>
+          ) : (
+            /* Empty State / Welcome Screen */
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-10 sm:p-14 text-center max-w-3xl mx-auto shadow-2xl animate-fadeIn">
+              <div className="w-16 h-16 rounded-2xl bg-cyan-950 border border-cyan-500/40 text-cyan-400 flex items-center justify-center mx-auto mb-4">
+                <Timer className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-100 tracking-tight mb-2">
+                Multi-Checkpoint Race Timing
+              </h2>
+              <p className="text-slate-400 text-sm sm:text-base font-mono max-w-lg mx-auto mb-8">
+                Create an authoritative time trial, assign checkpoint phones with unique Join Codes & QR cards, and track live segment paces with automatic missed-checkpoint recovery.
+              </p>
 
-            <div className="pt-6 border-t border-slate-800 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowCreateWizard(false)}
-                className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-4">
+                <button
+                  onClick={() => setShowCreateWizard(true)}
+                  className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm flex items-center gap-2 shadow-xl shadow-cyan-500/20 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create New Race</span>
+                </button>
 
-              <button
-                type="submit"
-                disabled={creatingRace}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm shadow-lg shadow-cyan-500/20 transition-all cursor-pointer disabled:opacity-50"
-              >
-                {creatingRace ? 'Creating Race & Join Codes...' : 'Launch Race Controller'}
-              </button>
+                <button
+                  onClick={onJoinByCodeClicked}
+                  className="px-6 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono text-sm flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <QrCode className="w-4 h-4 text-cyan-400" />
+                  <span>Join as Checkpoint Staff</span>
+                </button>
+              </div>
+
+              {hostRaces.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-slate-800/80">
+                  <button
+                    onClick={() => setActiveTab('HISTORY')}
+                    className="text-xs font-mono text-cyan-400 hover:text-cyan-300 flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer"
+                  >
+                    <History className="w-4 h-4" />
+                    <span>View {hostRaces.length} Past Race Session(s) in History</span>
+                  </button>
+                </div>
+              )}
             </div>
-
-          </form>
-        </div>
-      ) : (
-        /* Empty State / Welcome Screen */
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-10 sm:p-14 text-center max-w-3xl mx-auto shadow-2xl">
-          <div className="w-16 h-16 rounded-2xl bg-cyan-950 border border-cyan-500/40 text-cyan-400 flex items-center justify-center mx-auto mb-4">
-            <Timer className="w-8 h-8" />
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-100 tracking-tight mb-2">
-            Multi-Checkpoint Race Timing
-          </h2>
-          <p className="text-slate-400 text-sm sm:text-base font-mono max-w-lg mx-auto mb-8">
-            Create an authoritative time trial, assign checkpoint phones with unique Join Codes & QR cards, and track live segment paces with automatic missed-checkpoint recovery.
-          </p>
-
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <button
-              onClick={() => setShowCreateWizard(true)}
-              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm flex items-center gap-2 shadow-xl shadow-cyan-500/20 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create New Race</span>
-            </button>
-
-            <button
-              onClick={onJoinByCodeClicked}
-              className="px-6 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono text-sm flex items-center gap-2 transition-colors cursor-pointer"
-            >
-              <QrCode className="w-4 h-4 text-cyan-400" />
-              <span>Join as Checkpoint Staff</span>
-            </button>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
     </div>
