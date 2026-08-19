@@ -8,15 +8,21 @@ import {
   X, 
   ExternalLink,
   Code2,
-  Sparkles
+  Sparkles,
+  Rocket
 } from 'lucide-react';
 
 interface NavbarProps {
   onOpenTerminal: () => void;
   onOpenCnameGuide: () => void;
+  onOpenDeployTroubleshooter: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenTerminal, onOpenCnameGuide }) => {
+export const Navbar: React.FC<NavbarProps> = ({ 
+  onOpenTerminal, 
+  onOpenCnameGuide,
+  onOpenDeployTroubleshooter 
+}) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -87,7 +93,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenTerminal, onOpenCnameGuide
           </nav>
 
           {/* Quick Actions */}
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-2.5">
+            <button
+              id="deploy-helper-nav-btn"
+              onClick={onOpenDeployTroubleshooter}
+              type="button"
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/50 hover:border-cyan-400 text-cyan-300 text-xs font-mono flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              title="Deploy Troubleshooter & GitHub Steps"
+            >
+              <Rocket className="w-3.5 h-3.5 text-cyan-400 animate-bounce" />
+              <span>Deploy Guide</span>
+            </button>
+
             <button
               id="terminal-toggle-btn"
               onClick={onOpenTerminal}
@@ -96,17 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenTerminal, onOpenCnameGuide
               title="Open Interactive Developer CLI"
             >
               <Terminal className="w-3.5 h-3.5 text-cyan-400" />
-              <span>CLI Mode</span>
-            </button>
-
-            <button
-              id="cname-badge-btn"
-              onClick={onOpenCnameGuide}
-              type="button"
-              className="px-3 py-1.5 rounded-lg bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 text-xs font-mono flex items-center gap-1.5 hover:bg-cyan-900/40 transition-colors cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>CNAME: mohandagar.in</span>
+              <span>CLI</span>
             </button>
 
             <a
@@ -124,6 +131,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenTerminal, onOpenCnameGuide
 
           {/* Mobile Menu Button */}
           <div className="flex md:hidden items-center gap-2">
+            <button
+              id="mobile-deploy-btn"
+              onClick={onOpenDeployTroubleshooter}
+              type="button"
+              className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-500/40 text-cyan-300"
+              aria-label="Deploy Assistant"
+            >
+              <Rocket className="w-4 h-4" />
+            </button>
             <button
               id="mobile-terminal-btn"
               onClick={onOpenTerminal}
@@ -163,9 +179,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenTerminal, onOpenCnameGuide
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
+                    onOpenDeployTroubleshooter();
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg bg-cyan-950/60 text-cyan-300 text-xs font-mono flex items-center gap-2 border border-cyan-500/30"
+                >
+                  <Rocket className="w-4 h-4 text-cyan-400" />
+                  <span>Deploy Assistant (mohandagar.in Fix)</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
                     onOpenCnameGuide();
                   }}
-                  className="w-full text-left px-3 py-2 rounded-lg bg-cyan-950/40 text-cyan-300 text-xs font-mono flex items-center gap-2"
+                  className="w-full text-left px-3 py-2 rounded-lg bg-slate-900 text-slate-300 text-xs font-mono flex items-center gap-2"
                 >
                   <Globe className="w-4 h-4 text-cyan-400" />
                   <span>CNAME Guide: mohandagar.in</span>

@@ -9,13 +9,16 @@ import {
   Copy, 
   Check, 
   Download, 
-  ShieldCheck,
-  Code2
+  ShieldCheck, 
+  Code2,
+  Rocket,
+  AlertCircle
 } from 'lucide-react';
 
 interface HeroProps {
   onOpenTerminal: () => void;
   onOpenCnameGuide: () => void;
+  onOpenDeployTroubleshooter: () => void;
 }
 
 const ROLES = [
@@ -25,7 +28,11 @@ const ROLES = [
   'TypeScript & React Specialist'
 ];
 
-export const Hero: React.FC<HeroProps> = ({ onOpenTerminal, onOpenCnameGuide }) => {
+export const Hero: React.FC<HeroProps> = ({ 
+  onOpenTerminal, 
+  onOpenCnameGuide,
+  onOpenDeployTroubleshooter 
+}) => {
   const [roleIndex, setRoleIndex] = useState(0);
   const [copiedDomain, setCopiedDomain] = useState(false);
 
@@ -96,13 +103,23 @@ export const Hero: React.FC<HeroProps> = ({ onOpenTerminal, onOpenCnameGuide }) 
               </a>
 
               <button
+                id="hero-deploy-assistant-btn"
+                onClick={onOpenDeployTroubleshooter}
+                type="button"
+                className="px-5 py-3.5 rounded-xl bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-500/50 text-cyan-300 text-sm font-semibold flex items-center justify-center gap-2 transition-all w-full sm:w-auto cursor-pointer shadow-md shadow-cyan-950/50"
+              >
+                <Rocket className="w-4 h-4 text-cyan-400 animate-pulse" />
+                <span>Deploy to mohandagar.in</span>
+              </button>
+
+              <button
                 id="hero-cname-setup-btn"
                 onClick={onOpenCnameGuide}
                 type="button"
-                className="px-5 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500/50 text-slate-200 text-sm font-medium flex items-center justify-center gap-2 transition-all w-full sm:w-auto cursor-pointer"
+                className="px-4 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500/50 text-slate-200 text-sm font-medium flex items-center justify-center gap-2 transition-all w-full sm:w-auto cursor-pointer"
               >
                 <Globe className="w-4 h-4 text-cyan-400" />
-                <span>CNAME Deploy Info</span>
+                <span>DNS Config</span>
               </button>
 
               <button

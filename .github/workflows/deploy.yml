@@ -25,20 +25,16 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 22
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build project
-        run: npm run build
-
-      - name: Ensure CNAME file exists in dist
         run: |
-          if [ ! -f dist/CNAME ]; then
-            echo "mohandagar.in" > dist/CNAME
-          fi
+          npm run build
+          cp dist/index.html dist/404.html
+          echo "mohandagar.in" > dist/CNAME
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

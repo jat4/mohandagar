@@ -13,12 +13,17 @@ import { CnameGuideSection } from './components/CnameGuideSection';
 import { ContactSection } from './components/ContactSection';
 import { Footer } from './components/Footer';
 import { TerminalModal } from './components/TerminalModal';
+import { DeployTroubleshooterModal } from './components/DeployTroubleshooterModal';
 
 export default function App() {
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [deployModalOpen, setDeployModalOpen] = useState(false);
 
   const handleOpenTerminal = () => setTerminalOpen(true);
   const handleCloseTerminal = () => setTerminalOpen(false);
+
+  const handleOpenDeployModal = () => setDeployModalOpen(true);
+  const handleCloseDeployModal = () => setDeployModalOpen(false);
 
   const handleOpenCnameGuide = () => {
     const el = document.getElementById('cname-guide');
@@ -32,14 +37,16 @@ export default function App() {
       {/* Navigation Header */}
       <Navbar 
         onOpenTerminal={handleOpenTerminal} 
-        onOpenCnameGuide={handleOpenCnameGuide} 
+        onOpenCnameGuide={handleOpenCnameGuide}
+        onOpenDeployTroubleshooter={handleOpenDeployModal} 
       />
 
       {/* Main Sections */}
       <main>
         <Hero 
           onOpenTerminal={handleOpenTerminal} 
-          onOpenCnameGuide={handleOpenCnameGuide} 
+          onOpenCnameGuide={handleOpenCnameGuide}
+          onOpenDeployTroubleshooter={handleOpenDeployModal} 
         />
         
         <ProjectsSection />
@@ -60,6 +67,12 @@ export default function App() {
       <TerminalModal 
         isOpen={terminalOpen} 
         onClose={handleCloseTerminal} 
+      />
+
+      {/* Deploy Troubleshooter & GitHub Sync Modal */}
+      <DeployTroubleshooterModal
+        isOpen={deployModalOpen}
+        onClose={handleCloseDeployModal}
       />
     </div>
   );
