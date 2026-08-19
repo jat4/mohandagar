@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { 
   collection, 
   doc, 
@@ -23,6 +28,27 @@ import {
 import { generateJoinCode } from '../utils/raceCalculations';
 import { TimeSyncService } from './timeSyncService';
 
+/**
+ * Utility to strip undefined values so Firestore setDoc / updateDoc never fails
+ */
+function sanitizeFirestorePayload<T extends Record<string, any>>(obj: T): T {
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        cleaned[key] = sanitizeFirestorePayload(value);
+      } else if (Array.isArray(value)) {
+        cleaned[key] = value.map(item => 
+          item !== null && typeof item === 'object' ? sanitizeFirestorePayload(item) : item
+        );
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned as T;
+}
+
 export class RaceService {
   /**
    * Create a new race and its join code mappings
@@ -30,7 +56,6 @@ export class RaceService {
   static async createRace(input: {
     name: string;
     runnerName: string;
-    runnerBib?: string;
     totalPlannedDistanceMeters: number;
     displayUnit?: 'METERS' | 'KILOMETERS' | 'MILES';
     checkpoints: Array<{
@@ -65,11 +90,10 @@ export class RaceService {
         };
       });
 
-      const race: Race = {
+    const raceData: Record<string, any> = {
       id: raceId,
       name: input.name.trim(),
       runnerName: input.runnerName.trim(),
-      runnerBib: input.runnerBib?.trim() || undefined,
       totalPlannedDistanceMeters: input.totalPlannedDistanceMeters,
       displayUnit: input.displayUnit || 'KILOMETERS',
       status: 'READY',
@@ -84,9 +108,11 @@ export class RaceService {
       notes: input.notes || ''
     };
 
+    const sanitizedRace = sanitizeFirestorePayload(raceData) as Race;
+
     try {
       // 1. Save Race Document
-      await setDoc(doc(db, 'races', raceId), race);
+      await setDoc(doc(db, 'races', raceId), sanitizedRace);
 
       // 2. Save Join Code lookups in parallel
       const joinCodePromises = checkpoints.map((cp) => {
@@ -97,11 +123,11 @@ export class RaceService {
           createdAt: now,
           active: true
         };
-        return setDoc(doc(db, 'joinCodes', cp.joinCode.toUpperCase()), mapping);
+        return setDoc(doc(db, 'joinCodes', cp.joinCode.toUpperCase()), sanitizeFirestorePayload(mapping));
       });
 
       await Promise.all(joinCodePromises);
-      return race;
+      return sanitizedRace;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `races/${raceId}`);
     }
@@ -224,7 +250,7 @@ export class RaceService {
         clientRecordedAt: startTimestamp
       };
 
-      await setDoc(doc(db, 'races', raceId, 'events', eventId), startEvent);
+      await setDoc(doc(db, 'races', raceId, 'events', eventId), sanitizeFirestorePayload(startEvent));
       return startTimestamp;
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `races/${raceId}`);
@@ -266,7 +292,7 @@ export class RaceService {
 
     try {
       // 1. Persist immutable event
-      await setDoc(doc(db, 'races', params.raceId, 'events', eventId), event);
+      await setDoc(doc(db, 'races', params.raceId, 'events', eventId), sanitizeFirestorePayload(event));
 
       // 2. If FINISH event, also update race status
       if (params.eventType === 'FINISH') {
@@ -332,15 +358,12 @@ export class RaceService {
     const now = TimeSyncService.now();
     try {
       const sessionRef = doc(db, 'races', raceId, 'staffSessions', sessionId);
-      await setDoc(
-        sessionRef,
-        {
-          ...data,
-          lastSeenAt: now,
-          status: 'ONLINE'
-        },
-        { merge: true }
-      );
+      const payload = sanitizeFirestorePayload({
+        ...data,
+        lastSeenAt: now,
+        status: 'ONLINE'
+      });
+      await setDoc(sessionRef, payload, { merge: true });
     } catch (err) {
       console.warn('Heartbeat update notice:', err);
     }
@@ -368,7 +391,7 @@ export class RaceService {
     const now = TimeSyncService.now();
     try {
       await updateDoc(doc(db, 'races', raceId), {
-        checkpoints,
+        checkpoints: checkpoints.map(cp => sanitizeFirestorePayload(cp)),
         updatedAt: now
       });
     } catch (error) {

@@ -14,6 +14,7 @@ import {
 } from '../../utils/raceCalculations';
 import { RaceTimerClock } from './RaceTimerClock';
 import { QrCodeModal } from './QrCodeModal';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { 
   Play, 
   Flag, 
@@ -55,6 +56,8 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
   const [selectedQrCheckpoint, setSelectedQrCheckpoint] = useState<Checkpoint | null>(null);
   const [starting, setStarting] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const timeSync = useTimeSync();
   const [recalibrating, setRecalibrating] = useState(false);
 
@@ -83,10 +86,10 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
   };
 
   const handleFinishRace = async () => {
-    if (!confirm('Mark race as officially FINISHED?')) return;
     setFinishing(true);
     try {
       await RaceService.finishRace(race.id);
+      setShowFinishConfirm(false);
     } catch (err) {
       console.error('Error finishing race:', err);
     } finally {
@@ -117,7 +120,7 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
               {race.name}
             </h1>
             <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-400 mt-1.5">
-              <span>Runner: <strong className="text-slate-200">{race.runnerName}</strong> (Bib #{race.runnerBib})</span>
+              <span>Runner: <strong className="text-slate-100 font-bold">{race.runnerName}</strong></span>
               <span>•</span>
               <span>Planned: <strong className="text-cyan-300">{formatDistance(race.totalPlannedDistanceMeters, race.displayUnit)}</strong></span>
               <span>•</span>
@@ -148,7 +151,7 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
 
             {isRunning && (
               <button
-                onClick={handleFinishRace}
+                onClick={() => setShowFinishConfirm(true)}
                 disabled={finishing}
                 className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold font-mono text-sm flex items-center gap-2 shadow-lg shadow-rose-600/30 transition-all cursor-pointer"
               >
@@ -168,11 +171,7 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
             )}
 
             <button
-              onClick={() => {
-                if (confirm('Reset race timer and clear all recorded checkpoint splits?')) {
-                  onResetRace();
-                }
-              }}
+              onClick={() => setShowResetConfirm(true)}
               className="p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-colors cursor-pointer"
               title="Reset Race"
             >
@@ -313,13 +312,17 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                   >
                     <td className="py-3.5 px-4 font-bold text-slate-100">
                       <div>{row.checkpoint.name}</div>
-                      {row.checkpoint.type === 'SPLIT_AND_FINISH' ? (
+                      {row.checkpoint.id === race.checkpoints[race.checkpoints.length - 1]?.id ? (
                         <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-rose-950/80 text-rose-300 border border-rose-500/30 font-semibold uppercase">
-                          🏁 Official Finish
+                          🏁 Official Finish Gate
+                        </span>
+                      ) : row.checkpoint.type === 'SPLIT_AND_FINISH' ? (
+                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-amber-950/80 text-amber-300 border border-amber-500/30 font-semibold uppercase">
+                          ⚡ Split OR Finish
                         </span>
                       ) : (
                         <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 font-semibold uppercase">
-                          ⚡ Intermediate Split
+                          ⚡ Split Only
                         </span>
                       )}
                     </td>
@@ -443,6 +446,34 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
           checkpoint={selectedQrCheckpoint}
         />
       )}
+
+      {/* Finish Race Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showFinishConfirm}
+        title="Officially Finish Race?"
+        message="Are you sure you want to stop the timer and mark this race as FINISHED? This will finalize all checkpoint rankings and elapsed timings."
+        confirmText="Finish Race"
+        cancelText="Keep Running"
+        variant="danger"
+        isLoading={finishing}
+        onConfirm={handleFinishRace}
+        onCancel={() => setShowFinishConfirm(false)}
+      />
+
+      {/* Reset Race Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        title="Reset Race Timings?"
+        message="This will reset the race clock to READY status and clear all recorded checkpoint splits. Are you sure you want to proceed?"
+        confirmText="Reset Race"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={() => {
+          setShowResetConfirm(false);
+          onResetRace();
+        }}
+        onCancel={() => setShowResetConfirm(false)}
+      />
 
     </div>
   );

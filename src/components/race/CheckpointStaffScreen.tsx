@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Race, 
@@ -10,6 +15,8 @@ import { useTimeSync } from '../../services/timeSyncService';
 import { formatDistance, formatTimeMs, calculateRaceStatistics } from '../../utils/raceCalculations';
 import { RaceTimerClock } from './RaceTimerClock';
 import { ActivityExportCard } from './ActivityExportCard';
+import { ConfirmModal } from '../common/ConfirmModal';
+import { useToast } from '../../context/ToastContext';
 import { 
   Wifi, 
   WifiOff, 
@@ -20,11 +27,13 @@ import {
   Timer, 
   User, 
   Share2, 
-  ArrowLeft,
-  ShieldCheck,
-  Zap,
-  Info,
-  RefreshCw
+  ArrowLeft, 
+  ShieldCheck, 
+  Zap, 
+  Info, 
+  RefreshCw,
+  AlertTriangle,
+  StopCircle
 } from 'lucide-react';
 
 interface CheckpointStaffScreenProps {
@@ -46,10 +55,12 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   isHost,
   onExit
 }) => {
+  const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'SAVED' | 'SYNCING' | 'FAILED' | 'READY'>('READY');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showExport, setShowExport] = useState(false);
+  const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const lastRecordedAtRef = useRef<number>(0);
   const timeSync = useTimeSync();
   const [recalibrating, setRecalibrating] = useState(false);
@@ -97,14 +108,14 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
     };
   }, [race.id, checkpoint.id, staffName, deviceName, isHost, sessionId]);
 
-  // Check if this checkpoint has already recorded a split
+  // Check if this checkpoint has already recorded a split or finish
   const thisCheckpointEvent = events.find((e) => e.checkpointId === checkpoint.id);
   const hasRecorded = !!thisCheckpointEvent;
 
   // Debounced SPLIT trigger
   const handleRecordSplit = async () => {
     if (!race.startTimestamp || race.status !== 'RUNNING') {
-      alert('Race is not currently running!');
+      showToast({ type: 'warning', title: 'Race Not Running', message: 'The race has not been started yet by the Host.' });
       return;
     }
 
@@ -130,22 +141,20 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         raceStartTimestamp: race.startTimestamp
       });
       setSyncStatus('SAVED');
-    } catch (err) {
+      showToast({ type: 'success', title: 'Split Recorded!', message: `Split captured at ${checkpoint.name}.` });
+    } catch (err: any) {
       console.error('Error recording split:', err);
       setSyncStatus('FAILED');
+      showToast({ type: 'error', title: 'Record Failed', message: err.message || 'Failed to record split to cloud.' });
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Debounced FINISH trigger
-  const handleRecordFinish = async () => {
+  // Debounced FINISH trigger (End race at this checkpoint)
+  const handleExecuteFinish = async () => {
     if (!race.startTimestamp || race.status !== 'RUNNING') {
-      alert('Race is not currently running!');
-      return;
-    }
-
-    if (!confirm(`Are you sure you want to trigger FINISH for ${race.runnerName}?`)) {
+      showToast({ type: 'warning', title: 'Race Not Running', message: 'The race is not currently in progress.' });
       return;
     }
 
@@ -167,15 +176,19 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         raceStartTimestamp: race.startTimestamp
       });
       setSyncStatus('SAVED');
-    } catch (err) {
+      setShowFinishConfirmModal(false);
+      showToast({ type: 'success', title: 'Official Finish Recorded!', message: `Race officially completed at ${checkpoint.name} (${formatDistance(checkpoint.distanceMeters, race.displayUnit)}).` });
+    } catch (err: any) {
       console.error('Error recording finish:', err);
       setSyncStatus('FAILED');
+      showToast({ type: 'error', title: 'Finish Failed', message: err.message || 'Failed to finalize race finish.' });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const isFinishPermitted = checkpoint.type === 'SPLIT_AND_FINISH' || isHost;
+  const isFinalGate = checkpoint.id === race.checkpoints[race.checkpoints.length - 1]?.id;
+  const hasSplitAndFinishAuthority = checkpoint.type === 'SPLIT_AND_FINISH' || isHost;
   const isRunning = race.status === 'RUNNING';
   const isFinished = race.status === 'FINISHED';
 
@@ -189,7 +202,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         <div className="flex items-center justify-between">
           <button
             onClick={onExit}
-            className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1.5 cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Leave Screen</span>
@@ -228,32 +241,44 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         </div>
 
         {/* Checkpoint & Runner Header Card */}
-        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
+        <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
           <div className="flex items-start justify-between">
             <div>
-              <div className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest font-bold">
-                Assigned Checkpoint
+              <div className="flex items-center gap-1.5 mb-1">
+                {isFinalGate ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-500/30">
+                    🏁 OFFICIAL FINISH GATE
+                  </span>
+                ) : checkpoint.type === 'SPLIT_AND_FINISH' ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950 text-amber-300 border border-amber-500/30">
+                    ⚡ SPLIT OR FINISH AUTHORITY
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/30">
+                    ⚡ SPLIT ONLY
+                  </span>
+                )}
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-100 mt-0.5">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-100">
                 {checkpoint.name}
               </h1>
-              <div className="text-sm font-mono text-slate-300 font-semibold mt-0.5">
+              <div className="text-sm font-mono text-cyan-300 font-semibold mt-0.5">
                 Distance: {formatDistance(checkpoint.distanceMeters, race.displayUnit)}
               </div>
             </div>
 
             <div className="text-right">
               <span className="text-[10px] font-mono text-slate-400 block">Race</span>
-              <span className="text-xs font-bold text-slate-200 block truncate max-w-[120px]">
+              <span className="text-xs font-bold text-slate-200 block truncate max-w-[130px]">
                 {race.name}
               </span>
-              <span className="text-xs text-cyan-300 font-mono block">
-                Runner: {race.runnerName} (#{race.runnerBib})
+              <span className="text-xs text-slate-300 font-mono font-bold block mt-0.5">
+                Runner: <span className="text-cyan-300">{race.runnerName}</span>
               </span>
             </div>
           </div>
 
-          <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs font-mono text-slate-400">
+          <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono text-slate-400">
             <div>Staff: <strong className="text-slate-200">{staffName}</strong></div>
             <div>Device: <strong className="text-slate-300">{deviceName}</strong></div>
           </div>
@@ -267,7 +292,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
             <Timer className="w-3.5 h-3.5 text-cyan-400" />
             <span>Synchronized Race Time</span>
           </span>
-          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-400">
+          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-400">
             <span className={`w-1.5 h-1.5 rounded-full ${
               timeSync.isSynced ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
             }`} />
@@ -309,28 +334,31 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
           </div>
         </div>
 
-        {/* Recorded Split Confirmation Banner */}
+        {/* Recorded Split/Finish Confirmation Banner */}
         {hasRecorded && thisCheckpointEvent && (
-          <div className="p-3.5 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-mono text-left flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <div className="p-4 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-mono text-left flex items-center justify-between shadow-lg animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
               <div>
-                <div>Recorded Split: <strong>{formatTimeMs(thisCheckpointEvent.elapsedMs)}</strong></div>
-                <div className="text-[10px] text-emerald-400/80">Saved to Cloud Database</div>
+                <div className="font-bold text-sm">
+                  {thisCheckpointEvent.eventType === 'FINISH' ? 'Official Finish Recorded' : 'Checkpoint Split Recorded'}: {formatTimeMs(thisCheckpointEvent.elapsedMs)}
+                </div>
+                <div className="text-[11px] text-emerald-400/80">Saved & Synchronized to Cloud Database</div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Bottom Action Area: Big Touch-Friendly Buttons */}
+      {/* Bottom Action Area: Authority-Based Buttons */}
       <div className="space-y-3">
         {isRunning && (
           <div className="space-y-3">
-            {/* If checkpoint is Finish Gate: Show ONLY Big Red Finish Button */}
-            {checkpoint.type === 'SPLIT_AND_FINISH' ? (
+            
+            {/* CASE 1: Official Finish Gate */}
+            {isFinalGate ? (
               <button
-                onClick={handleRecordFinish}
+                onClick={() => setShowFinishConfirmModal(true)}
                 disabled={submitting || hasRecorded}
                 className={`w-full py-6 rounded-2xl font-mono text-xl sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer ${
                   hasRecorded
@@ -341,33 +369,68 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
                 <Flag className="w-6 h-6" />
                 <span>{hasRecorded ? 'FINISH RECORDED' : 'RECORD OFFICIAL FINISH'}</span>
               </button>
+            ) : checkpoint.type === 'SPLIT_AND_FINISH' ? (
+              /* CASE 2: Intermediate Checkpoint WITH Split + Finish Authority */
+              <div className="space-y-3">
+                {/* Primary Button: Record Split */}
+                <button
+                  onClick={handleRecordSplit}
+                  disabled={submitting || hasRecorded}
+                  className={`w-full py-5 rounded-2xl font-mono text-lg sm:text-xl font-black flex items-center justify-center gap-2.5 shadow-xl transition-all cursor-pointer ${
+                    hasRecorded
+                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                      : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-cyan-500/30 active:scale-[0.98]'
+                  }`}
+                >
+                  <Zap className="w-5 h-5 fill-current" />
+                  <span>{hasRecorded ? 'SPLIT RECORDED' : 'RECORD SPLIT'}</span>
+                </button>
+
+                {/* Secondary Authority Button: Runner Stopped / Finish Race Here */}
+                {!hasRecorded && (
+                  <button
+                    onClick={() => setShowFinishConfirmModal(true)}
+                    disabled={submitting}
+                    className="w-full py-3 rounded-xl font-mono text-xs font-bold bg-slate-900 hover:bg-rose-950/80 text-rose-400 hover:text-rose-300 border border-rose-900/50 hover:border-rose-500/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <StopCircle className="w-4 h-4 text-rose-400" />
+                    <span>Runner Stopped Here? End & Finish Race</span>
+                  </button>
+                )}
+              </div>
             ) : (
-              /* If checkpoint is Intermediate Split: Show ONLY Big Cyan Split Button */
+              /* CASE 3: Intermediate Checkpoint with SPLIT ONLY Authority */
+              <div className="space-y-2">
+                <button
+                  onClick={handleRecordSplit}
+                  disabled={submitting || hasRecorded}
+                  className={`w-full py-6 rounded-2xl font-mono text-xl sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer ${
+                    hasRecorded
+                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                      : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-cyan-500/30 active:scale-[0.98]'
+                  }`}
+                >
+                  <Zap className="w-6 h-6 fill-current" />
+                  <span>{hasRecorded ? 'SPLIT RECORDED' : 'RECORD SPLIT'}</span>
+                </button>
+                <div className="text-center text-[10px] font-mono text-slate-500">
+                  Checkpoint Authority: Split Recording Only
+                </div>
+              </div>
+            )}
+
+            {/* Host Emergency Override if timing as host */}
+            {isHost && !isFinalGate && checkpoint.type === 'SPLIT' && !hasRecorded && (
               <button
-                onClick={handleRecordSplit}
-                disabled={submitting || hasRecorded}
-                className={`w-full py-6 rounded-2xl font-mono text-xl sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer ${
-                  hasRecorded
-                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                    : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-cyan-500/30 active:scale-[0.98]'
-                }`}
+                onClick={() => setShowFinishConfirmModal(true)}
+                disabled={submitting}
+                className="w-full py-2.5 rounded-xl font-mono text-xs font-bold bg-slate-900 hover:bg-slate-800 text-rose-400 border border-rose-900/50 flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
-                <Zap className="w-6 h-6" />
-                <span>{hasRecorded ? 'SPLIT RECORDED' : 'RECORD SPLIT'}</span>
+                <Flag className="w-3.5 h-3.5" />
+                <span>Host Override: Finish Race Here</span>
               </button>
             )}
 
-            {/* If user is Host viewing on phone, allow emergency Host Finish trigger if needed */}
-            {isHost && checkpoint.type === 'SPLIT' && (
-              <button
-                onClick={handleRecordFinish}
-                disabled={submitting}
-                className="w-full py-3 rounded-xl font-mono text-xs font-bold bg-slate-800 hover:bg-slate-700 text-rose-400 border border-rose-900/50 flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                <Flag className="w-3.5 h-3.5" />
-                <span>Host Override: Stop & Finish Race</span>
-              </button>
-            )}
           </div>
         )}
 
@@ -395,12 +458,29 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         )}
 
         {race.status === 'READY' && (
-          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center text-xs font-mono text-slate-400">
+          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center text-xs font-mono text-slate-400">
             <Info className="w-4 h-4 text-cyan-400 mx-auto mb-1.5" />
-            Stay on this screen. As soon as the Host triggers Start, the live clock and SPLIT button will activate.
+            Stay on this screen. As soon as the Host triggers Start, the live clock and action buttons will activate automatically.
           </div>
         )}
       </div>
+
+      {/* Finish Race Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showFinishConfirmModal}
+        title={isFinalGate ? "Record Official Finish?" : `Finish Race at ${checkpoint.name}?`}
+        message={
+          isFinalGate 
+            ? `Are you sure you want to record the official finish time for runner "${race.runnerName}"?`
+            : `Did runner "${race.runnerName}" stop or complete their run early at this checkpoint (${formatDistance(checkpoint.distanceMeters, race.displayUnit)})? This will record the official finish time and end the race.`
+        }
+        confirmText="Yes, Finish Race"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={submitting}
+        onConfirm={handleExecuteFinish}
+        onCancel={() => setShowFinishConfirmModal(false)}
+      />
 
     </div>
   );

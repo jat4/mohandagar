@@ -726,7 +726,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                           </div>
 
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] font-mono text-slate-500">Type:</span>
+                            <span className="text-[11px] font-mono text-slate-500">Authority:</span>
                             <select
                               value={cp.type}
                               onChange={(e) => {
@@ -736,8 +736,8 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                               }}
                               className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500 cursor-pointer"
                             >
-                              <option value="SPLIT">SPLIT ONLY</option>
-                              <option value="SPLIT_AND_FINISH">FINISH GATE</option>
+                              <option value="SPLIT">Split Only</option>
+                              <option value="SPLIT_AND_FINISH">Split OR Finish</option>
                             </select>
                           </div>
 
