@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
-import { Race, TimingEvent } from '../../types/race';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { Race, TimingEvent, PublishedResult, PublicationStatus } from '../../types/race';
 import { calculateRaceStatistics, formatDistance, formatTimeMs } from '../../utils/raceCalculations';
 import { PaceSpeedCharts } from './PaceSpeedCharts';
 import { ActivityExportCard } from './ActivityExportCard';
+import { ResultQrCodeModal } from './ResultQrCodeModal';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { RaceService } from '../../services/raceService';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { 
   Trophy, 
   Timer, 
@@ -17,7 +22,16 @@ import {
   RotateCcw,
   ArrowLeft,
   Calendar,
-  User
+  User,
+  Globe,
+  Eye,
+  Trash2,
+  Send,
+  Copy,
+  ExternalLink,
+  Lock,
+  QrCode,
+  Award
 } from 'lucide-react';
 
 interface RaceActivitySummaryProps {
@@ -33,15 +47,124 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
   onBackToDashboard,
   onResetRace
 }) => {
+  const { currentUser, isHost } = useAuth();
+  const { showToast } = useToast();
+
   const [showExportModal, setShowExportModal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showResultQrModal, setShowResultQrModal] = useState(false);
+
+  const [publishedResult, setPublishedResult] = useState<PublishedResult | null>(null);
+  const [publishingAction, setPublishingAction] = useState(false);
+
   const stats = calculateRaceStatistics(race, events);
+  const isRaceOwner = currentUser && (currentUser.uid === race.hostUid);
+
+  // Subscribe to live published status for this race
+  useEffect(() => {
+    const unsub = RaceService.subscribeToPublishedResult(
+      race.id,
+      (res) => {
+        setPublishedResult(res);
+      },
+      (err) => console.warn('Published result status check:', err)
+    );
+    return () => unsub();
+  }, [race.id]);
+
+  const currentStatus: PublicationStatus = publishedResult 
+    ? publishedResult.resultStatus 
+    : 'UNPUBLISHED';
+
+  const handlePublish = async () => {
+    setPublishingAction(true);
+    try {
+      const res = await RaceService.publishRaceResult(race, events);
+      setPublishedResult(res);
+      showToast({
+        type: 'success',
+        title: 'Result Published!',
+        message: 'Official race results are now live and publicly viewable.'
+      });
+      setShowPublishConfirm(false);
+    } catch (err: any) {
+      console.error('Publish error:', err);
+      showToast({
+        type: 'error',
+        title: 'Publish Failed',
+        message: err.message || 'Could not publish race result.'
+      });
+    } finally {
+      setPublishingAction(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    setPublishingAction(true);
+    try {
+      await RaceService.unpublishRaceResult(race.id);
+      showToast({
+        type: 'info',
+        title: 'Result Unpublished',
+        message: 'Official result removed from public directory.'
+      });
+      setShowUnpublishConfirm(false);
+    } catch (err: any) {
+      console.error('Unpublish error:', err);
+      showToast({
+        type: 'error',
+        title: 'Unpublish Failed',
+        message: err.message || 'Could not unpublish race result.'
+      });
+    } finally {
+      setPublishingAction(false);
+    }
+  };
+
+  const handleDeleteResult = async () => {
+    setPublishingAction(true);
+    try {
+      await RaceService.deleteRaceResult(race.id);
+      showToast({
+        type: 'warning',
+        title: 'Result Deleted',
+        message: 'Published result snapshot marked as DELETED.'
+      });
+      setShowDeleteConfirm(false);
+    } catch (err: any) {
+      console.error('Delete result error:', err);
+      showToast({
+        type: 'error',
+        title: 'Delete Failed',
+        message: err.message || 'Could not delete race result.'
+      });
+    } finally {
+      setPublishingAction(false);
+    }
+  };
+
+  const handleCopyPublicUrl = () => {
+    const domain = window.location.origin.includes('localhost') 
+      ? window.location.origin 
+      : 'https://mohandagar.in';
+    const url = `${domain}/results/${race.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      showToast({
+        type: 'info',
+        title: 'Link Copied',
+        message: 'Public official result link copied to clipboard.'
+      });
+    }).catch(console.error);
+  };
 
   return (
     <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto pb-16">
       
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-3xl shadow-xl">
         <div>
           <button
             onClick={onBackToDashboard}
@@ -94,6 +217,173 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
         </div>
       </div>
 
+      {/* Host Result Management Banner */}
+      {isRaceOwner && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-slate-800 text-slate-300">
+                <Globe className="w-5 h-5 text-cyan-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-100">Public Race Result Status</h3>
+                  
+                  {/* Status Badge */}
+                  {currentStatus === 'PUBLISHED' ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-950 border border-emerald-500/50 text-emerald-300 flex items-center gap-1.5 shadow-sm">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>PUBLISHED</span>
+                    </span>
+                  ) : currentStatus === 'DELETED' ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-rose-950 border border-rose-500/50 text-rose-300 flex items-center gap-1.5">
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>DELETED</span>
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-800 border border-slate-700 text-slate-400 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>UNPUBLISHED</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-mono text-slate-400 mt-1">
+                  {currentStatus === 'PUBLISHED'
+                    ? 'This result snapshot is live on the public directory and accessible to spectators at /results/' + race.id
+                    : currentStatus === 'DELETED'
+                    ? 'This result snapshot was marked as deleted and is hidden from public lists.'
+                    : 'This race result is currently private to the host. Publish it to create an official public link and QR code.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {currentStatus === 'UNPUBLISHED' && (
+                <button
+                  onClick={() => setShowPublishConfirm(true)}
+                  disabled={publishingAction || race.status !== 'FINISHED'}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50 text-slate-950 font-bold font-mono text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>PUBLISH RESULT</span>
+                </button>
+              )}
+
+              {currentStatus === 'PUBLISHED' && (
+                <>
+                  <Link
+                    to={`/results/${race.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono text-xs flex items-center gap-2 transition-colors"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>VIEW PUBLIC RESULT</span>
+                  </Link>
+
+                  <button
+                    onClick={handleCopyPublicUrl}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono text-xs flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-slate-300" />
+                    <span>COPY LINK</span>
+                  </button>
+
+                  {publishedResult && (
+                    <button
+                      onClick={() => setShowResultQrModal(true)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono text-xs flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>QR CODE</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => setShowUnpublishConfirm(true)}
+                    disabled={publishingAction}
+                    className="px-4 py-2.5 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-500/40 text-amber-300 font-mono text-xs flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>UNPUBLISH</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={publishingAction}
+                    className="px-4 py-2.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-mono text-xs flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>DELETE RESULT</span>
+                  </button>
+                </>
+              )}
+
+              {currentStatus === 'DELETED' && (
+                <button
+                  onClick={() => setShowPublishConfirm(true)}
+                  disabled={publishingAction}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold font-mono text-xs flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>RE-PUBLISH RESULT</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {currentStatus === 'PUBLISHED' && (
+            <div className="flex items-center justify-between text-xs font-mono bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 text-slate-400">
+              <div className="flex items-center gap-2 truncate">
+                <span className="text-slate-500">Public URL:</span>
+                <span className="text-cyan-300 truncate">https://mohandagar.in/results/{race.id}</span>
+              </div>
+              <button
+                onClick={handleCopyPublicUrl}
+                className="text-cyan-400 hover:underline shrink-0 ml-2 font-bold"
+              >
+                Copy
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Confirmation Modals */}
+      <ConfirmModal
+        isOpen={showPublishConfirm}
+        title="Publish Race Result to Public Directory?"
+        message="This will create an official, publicly accessible result document with full checkpoint splits, pace calculations, and analytics at https://mohandagar.in/results/${race.id}. Spectators and athletes will be able to view and share this official record."
+        confirmText="Publish Result"
+        cancelText="Cancel"
+        variant="info"
+        onConfirm={handlePublish}
+        onCancel={() => setShowPublishConfirm(false)}
+      />
+
+      <ConfirmModal
+        isOpen={showUnpublishConfirm}
+        title="Unpublish Race Result?"
+        message="This will hide the race results from the public directory. The direct link will no longer show public splits until re-published."
+        confirmText="Unpublish"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={handleUnpublish}
+        onCancel={() => setShowUnpublishConfirm(false)}
+      />
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete Published Race Result?"
+        message="Are you sure you want to mark this published result snapshot as DELETED? The private race session data in your host controller will remain safe."
+        confirmText="Delete Result"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={handleDeleteResult}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
       <ConfirmModal
         isOpen={showResetConfirm}
         title="Reset Race Timings?"
@@ -107,6 +397,15 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
         }}
         onCancel={() => setShowResetConfirm(false)}
       />
+
+      {/* Result QR Modal */}
+      {publishedResult && (
+        <ResultQrCodeModal
+          isOpen={showResultQrModal}
+          onClose={() => setShowResultQrModal(false)}
+          result={publishedResult}
+        />
+      )}
 
       {/* Export Card Toggle Section */}
       {showExportModal && (

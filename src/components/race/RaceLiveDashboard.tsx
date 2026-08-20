@@ -6,7 +6,7 @@ import {
   Checkpoint 
 } from '../../types/race';
 import { RaceService } from '../../services/raceService';
-import { useTimeSync } from '../../services/timeSyncService';
+import { useTimeSync, TimeSyncService } from '../../services/timeSyncService';
 import { 
   calculateRaceStatistics, 
   formatDistance, 
@@ -57,6 +57,7 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
   const [starting, setStarting] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [pendingHostFinish, setPendingHostFinish] = useState<{ timestamp: number; elapsedMs: number } | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const timeSync = useTimeSync();
   const [recalibrating, setRecalibrating] = useState(false);
@@ -85,16 +86,32 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
     }
   };
 
-  const handleFinishRace = async () => {
+  // Immediate Authoritative Capture before opening confirm dialog
+  const handleTriggerHostFinishCapture = () => {
+    if (!race.startTimestamp || race.status !== 'RUNNING') return;
+    const finishPressedAt = TimeSyncService.now();
+    const elapsedMs = Math.max(0, finishPressedAt - race.startTimestamp);
+    setPendingHostFinish({ timestamp: finishPressedAt, elapsedMs });
+    setShowFinishConfirm(true);
+  };
+
+  const handleConfirmFinishRace = async () => {
+    if (!pendingHostFinish) return;
     setFinishing(true);
     try {
-      await RaceService.finishRace(race.id);
+      await RaceService.finishRace(race.id, pendingHostFinish.timestamp);
       setShowFinishConfirm(false);
+      setPendingHostFinish(null);
     } catch (err) {
       console.error('Error finishing race:', err);
     } finally {
       setFinishing(false);
     }
+  };
+
+  const handleCancelFinishRace = () => {
+    setShowFinishConfirm(false);
+    setPendingHostFinish(null);
   };
 
   const progressPercent = Math.min(
@@ -151,7 +168,7 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
 
             {isRunning && (
               <button
-                onClick={() => setShowFinishConfirm(true)}
+                onClick={handleTriggerHostFinishCapture}
                 disabled={finishing}
                 className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold font-mono text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30 transition-all cursor-pointer min-h-[48px]"
               >
@@ -312,17 +329,13 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                   >
                     <td className="py-3.5 px-4 font-bold text-slate-100">
                       <div>{row.checkpoint.name}</div>
-                      {row.checkpoint.id === race.checkpoints[race.checkpoints.length - 1]?.id ? (
+                      {row.checkpoint.type === 'FINISH' || row.checkpoint.type === 'SPLIT_AND_FINISH' ? (
                         <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-rose-950/80 text-rose-300 border border-rose-500/30 font-semibold uppercase">
-                          🏁 Official Finish Gate
-                        </span>
-                      ) : row.checkpoint.type === 'SPLIT_AND_FINISH' ? (
-                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-amber-950/80 text-amber-300 border border-amber-500/30 font-semibold uppercase">
-                          ⚡ Split OR Finish
+                          🏁 Finish Line (Finish Only)
                         </span>
                       ) : (
                         <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 font-semibold uppercase">
-                          ⚡ Split Only
+                          ⚡ Split Gate (Split & Finish)
                         </span>
                       )}
                     </td>
@@ -450,14 +463,14 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
       {/* Finish Race Confirmation Modal */}
       <ConfirmModal
         isOpen={showFinishConfirm}
-        title="Officially Finish Race?"
-        message="Are you sure you want to stop the timer and mark this race as FINISHED? This will finalize all checkpoint rankings and elapsed timings."
-        confirmText="Finish Race"
-        cancelText="Keep Running"
+        title="Finish runner?"
+        message={`Runner: ${race.runnerName}\nCaptured Finish Time: ${formatTimeMs(pendingHostFinish?.elapsedMs || 0)}\n\nAuthoritative timestamp was recorded at the exact moment FINISH was pressed. Do you want to commit this finish event and conclude the race?`}
+        confirmText="Yes"
+        cancelText="No"
         variant="danger"
         isLoading={finishing}
-        onConfirm={handleFinishRace}
-        onCancel={() => setShowFinishConfirm(false)}
+        onConfirm={handleConfirmFinishRace}
+        onCancel={handleCancelFinishRace}
       />
 
       {/* Reset Race Confirmation Modal */}

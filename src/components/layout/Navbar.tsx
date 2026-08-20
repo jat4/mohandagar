@@ -21,7 +21,8 @@ import {
   Layers,
   Sparkles,
   Menu,
-  X
+  X,
+  Award
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -76,6 +77,13 @@ export const Navbar: React.FC = () => {
       crumbs.push({ label: 'Host Login' });
     } else if (parts[0] === 'register') {
       crumbs.push({ label: 'Register Host' });
+    } else if (parts[0] === 'results') {
+      if (parts[1]) {
+        crumbs.push({ label: 'Race Results', to: '/results' });
+        crumbs.push({ label: `Record: ${parts[1]}` });
+      } else {
+        crumbs.push({ label: 'Race Results' });
+      }
     } else if (parts[0] === 'join') {
       if (parts[1]) {
         crumbs.push({ label: 'Join Checkpoint', to: '/join' });
@@ -167,6 +175,20 @@ export const Navbar: React.FC = () => {
           >
             <QrCode className="w-3.5 h-3.5" />
             <span>Staff Join</span>
+          </NavLink>
+
+          <NavLink
+            to="/results"
+            className={({ isActive }) =>
+              `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                isActive || location.pathname.startsWith('/results')
+                  ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`
+            }
+          >
+            <Award className="w-3.5 h-3.5" />
+            <span>Results</span>
           </NavLink>
 
           <NavLink
@@ -278,6 +300,13 @@ export const Navbar: React.FC = () => {
             className="block py-2.5 px-3 rounded-lg bg-slate-900 text-cyan-400 font-bold"
           >
             Staff Checkpoint Join
+          </Link>
+          <Link
+            to="/results"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block py-2.5 px-3 rounded-lg bg-slate-900 text-amber-400 font-bold"
+          >
+            Public Race Results
           </Link>
           <Link
             to="/host"

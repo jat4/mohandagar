@@ -83,5 +83,18 @@ service cloud.firestore {
       allow create: if isValidId(messageId) && incoming().createdAt is timestamp;
       allow get, list, update, delete: if isAdmin();
     }
+
+    // 5. Published Race Results (Public read for PUBLISHED, Host controls for owner)
+    match /publishedResults/{resultId} {
+      allow get: if isValidId(resultId) && (
+        existing().resultStatus == 'PUBLISHED' ||
+        (isSignedIn() && (existing().hostUid == request.auth.uid || isAdmin()))
+      );
+      allow list: if resource.data.resultStatus == 'PUBLISHED' ||
+        (isSignedIn() && (resource.data.hostUid == request.auth.uid || isAdmin()));
+      allow create: if isValidId(resultId) && isSignedIn() && incoming().hostUid == request.auth.uid;
+      allow update: if isValidId(resultId) && isSignedIn() && (existing().hostUid == request.auth.uid || isAdmin());
+      allow delete: if isValidId(resultId) && (isAdmin() || (isSignedIn() && existing().hostUid == request.auth.uid));
+    }
   }
 }

@@ -59,7 +59,7 @@ export const HomePage: React.FC = () => {
         </p>
 
         {/* Quick Action Panels */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left max-w-3xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-left max-w-5xl mx-auto">
           
           {/* Staff Checkpoint Join Card */}
           <div className="p-6 sm:p-7 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl relative flex flex-col justify-between hover:border-cyan-500/40 transition-all">
@@ -69,11 +69,11 @@ export const HomePage: React.FC = () => {
                   <QrCode className="w-6 h-6" />
                 </div>
                 <span className="text-[11px] font-mono text-cyan-400/80 font-bold uppercase tracking-wider">
-                  No App Install Needed
+                  No App Needed
                 </span>
               </div>
               <h2 className="text-xl font-bold text-slate-100 mb-1">
-                Volunteer Staff Checkpoint
+                Volunteer Staff
               </h2>
               <p className="text-xs font-mono text-slate-400 mb-5 leading-relaxed">
                 Assigned to a timing gate? Enter the 6-character race code or scan the checkpoint QR card to begin split timing.
@@ -91,11 +91,11 @@ export const HomePage: React.FC = () => {
                     setQuickCode(e.target.value.toUpperCase());
                     setErrorMsg(null);
                   }}
-                  className="flex-1 px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-sm uppercase text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                  className="flex-1 px-3.5 py-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs uppercase text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
                 />
                 <button
                   type="submit"
-                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+                  className="px-4 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs flex items-center gap-1 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
                 >
                   <span>JOIN</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -104,13 +104,48 @@ export const HomePage: React.FC = () => {
               {errorMsg && (
                 <div className="text-[11px] font-mono text-rose-400">{errorMsg}</div>
               )}
-              <div className="flex items-center justify-between pt-2 text-[11px] font-mono text-slate-500">
+              <div className="flex items-center justify-between pt-1 text-[11px] font-mono text-slate-500">
                 <Link to="/join" className="text-cyan-400 hover:underline flex items-center gap-1">
-                  <span>Open Camera QR Scanner</span>
+                  <span>Open Camera QR</span>
                   <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
             </form>
+          </div>
+
+          {/* Public Race Results Card */}
+          <div className="p-6 sm:p-7 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl relative flex flex-col justify-between hover:border-amber-500/40 transition-all">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2.5 rounded-2xl bg-amber-950 border border-amber-500/30 text-amber-400">
+                  <Award className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-mono text-amber-400/80 font-bold uppercase tracking-wider">
+                  Public Directory
+                </span>
+              </div>
+              <h2 className="text-xl font-bold text-slate-100 mb-1">
+                Official Race Results
+              </h2>
+              <p className="text-xs font-mono text-slate-400 mb-5 leading-relaxed">
+                Browse verified checkpoint splits, pace curves, official finisher times, and shareable QR cards.
+              </p>
+            </div>
+
+            <div className="space-y-2.5">
+              <Link
+                to="/results"
+                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black font-mono text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              >
+                <Award className="w-4 h-4 text-slate-950" />
+                <span>EXPLORE RESULTS</span>
+              </Link>
+              <div className="text-center">
+                <Link to="/results" className="text-xs font-mono text-slate-400 hover:text-amber-400 underline">
+                  View Leaderboards & Splits
+                </Link>
+              </div>
+            </div>
           </div>
 
           {/* Host Race Controller Card */}
@@ -128,7 +163,7 @@ export const HomePage: React.FC = () => {
                 Race Director & Host
               </h2>
               <p className="text-xs font-mono text-slate-400 mb-5 leading-relaxed">
-                Configure distance, customize checkpoints, distribute QR timing cards, and monitor live splits with real-time pace graphs.
+                Configure distance, customize checkpoints, distribute QR cards, and monitor live splits in real-time.
               </p>
             </div>
 
@@ -138,12 +173,12 @@ export const HomePage: React.FC = () => {
                 className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black font-mono text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-slate-950" />
-                <span>{isHost ? "OPEN HOST DASHBOARD" : "SIGN IN AS RACE HOST"}</span>
+                <span>{isHost ? "HOST DASHBOARD" : "HOST SIGN IN"}</span>
               </Link>
               {isHost && (
                 <div className="text-center">
                   <Link to="/host/races" className="text-xs font-mono text-slate-400 hover:text-cyan-400 underline">
-                    View Past Race History & Results
+                    Past Race History
                   </Link>
                 </div>
               )}

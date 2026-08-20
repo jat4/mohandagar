@@ -2,7 +2,7 @@ export type RaceStatus = 'SETUP' | 'READY' | 'RUNNING' | 'FINISHED' | 'CANCELLED
 
 export type DistanceUnit = 'METERS' | 'KILOMETERS' | 'MILES';
 
-export type CheckpointType = 'SPLIT' | 'SPLIT_AND_FINISH';
+export type CheckpointType = 'SPLIT' | 'FINISH' | 'SPLIT_AND_FINISH';
 
 export type TimingEventType = 'START' | 'SPLIT' | 'FINISH';
 
@@ -27,7 +27,6 @@ export interface Race {
   id: string;
   name: string;
   runnerName: string;
-  runnerBib?: string;
   totalPlannedDistanceMeters: number;
   displayUnit: DistanceUnit;
   status: RaceStatus;
@@ -122,7 +121,6 @@ export interface ProcessedCheckpointResult {
 export interface RaceStatistics {
   raceName: string;
   runnerName: string;
-  runnerBib?: string;
   dateFormatted: string;
   status: RaceStatus;
   totalPlannedDistanceMeters: number;
@@ -142,3 +140,36 @@ export interface RaceStatistics {
   recordedCheckpointsCount: number;
   totalCheckpointsCount: number;
 }
+
+export type PublicationStatus = 'UNPUBLISHED' | 'PUBLISHED' | 'DELETED';
+
+export interface PublishedResult {
+  id: string; // Typically equal to raceId
+  raceId: string;
+  raceName: string;
+  runnerName: string;
+  hostUid: string;
+  hostName?: string;
+  publishedAt: number;
+  updatedAt: number;
+  resultStatus: PublicationStatus;
+  totalPlannedDistanceMeters: number;
+  actualDistanceMeters: number;
+  actualDistanceKm: number;
+  totalTimeMs: number;
+  totalTimeFormatted: string;
+  averagePaceSecondsPerKm: number;
+  averagePaceFormatted: string;
+  averageSpeedKmh: number;
+  averageSpeedFormatted: string;
+  bestSplit?: MeasuredSegment | null;
+  slowestSplit?: MeasuredSegment | null;
+  processedCheckpoints: ProcessedCheckpointResult[];
+  measuredSegments: MeasuredSegment[];
+  dateFormatted: string;
+  recordedCheckpointsCount: number;
+  missedCheckpointsCount: number;
+  totalCheckpointsCount: number;
+  notes?: string;
+}
+

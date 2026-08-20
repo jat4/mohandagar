@@ -8,7 +8,6 @@
         "id": { "type": "string", "maxLength": 128 },
         "name": { "type": "string", "minLength": 2, "maxLength": 150 },
         "runnerName": { "type": "string", "minLength": 2, "maxLength": 100 },
-        "runnerBib": { "type": "string", "maxLength": 50 },
         "totalPlannedDistanceMeters": { "type": "number" },
         "displayUnit": { "type": "string", "enum": ["METERS", "KILOMETERS", "MILES"] },
         "status": { "type": "string", "enum": ["SETUP", "READY", "RUNNING", "FINISHED", "CANCELLED"] },
@@ -77,6 +76,36 @@
         "active": { "type": "boolean" }
       },
       "required": ["joinCode", "raceId", "checkpointId", "active"]
+    },
+    "publishedResult": {
+      "title": "Published Race Result",
+      "description": "Public immutable snapshot of finished race results and split analytics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "raceId": { "type": "string", "maxLength": 128 },
+        "raceName": { "type": "string", "maxLength": 150 },
+        "runnerName": { "type": "string", "maxLength": 100 },
+        "hostUid": { "type": "string", "maxLength": 128 },
+        "hostName": { "type": "string", "maxLength": 100 },
+        "publishedAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "resultStatus": { "type": "string", "enum": ["PUBLISHED", "UNPUBLISHED", "DELETED"] },
+        "totalPlannedDistanceMeters": { "type": "number" },
+        "actualDistanceMeters": { "type": "number" },
+        "actualDistanceKm": { "type": "number" },
+        "totalTimeMs": { "type": "number" },
+        "totalTimeFormatted": { "type": "string", "maxLength": 50 },
+        "averagePaceSecondsPerKm": { "type": "number" },
+        "averagePaceFormatted": { "type": "string", "maxLength": 50 },
+        "averageSpeedKmh": { "type": "number" },
+        "averageSpeedFormatted": { "type": "string", "maxLength": 50 },
+        "dateFormatted": { "type": "string", "maxLength": 100 },
+        "recordedCheckpointsCount": { "type": "number" },
+        "missedCheckpointsCount": { "type": "number" },
+        "totalCheckpointsCount": { "type": "number" }
+      },
+      "required": ["raceId", "raceName", "runnerName", "hostUid", "publishedAt", "resultStatus", "totalTimeMs", "actualDistanceMeters"]
     }
   },
   "firestore": {
@@ -95,6 +124,10 @@
     "/joinCodes/{joinCode}": {
       "schema": "joinCodeMapping",
       "description": "Quick lookup table for staff join codes"
+    },
+    "/publishedResults/{resultId}": {
+      "schema": "publishedResult",
+      "description": "Publicly accessible race timing and split analytics snapshots"
     }
   }
 }

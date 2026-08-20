@@ -57,7 +57,7 @@ export const HostDashboardPage: React.FC = () => {
     { id: '2', name: 'CP 2 (Midpoint)', distanceMeters: 2000, type: 'SPLIT', assignedStaffName: 'Phone B' },
     { id: '3', name: 'CP 3 (Turn 3)', distanceMeters: 3000, type: 'SPLIT', assignedStaffName: 'Phone C' },
     { id: '4', name: 'CP 4 (Final Loop)', distanceMeters: 4000, type: 'SPLIT', assignedStaffName: 'Phone D' },
-    { id: '5', name: 'FINISH GATE', distanceMeters: 5000, type: 'SPLIT_AND_FINISH', assignedStaffName: 'Finish Line' }
+    { id: '5', name: 'FINISH LINE', distanceMeters: 5000, type: 'FINISH', assignedStaffName: 'Finish Line' }
   ]);
 
   const [creatingRace, setCreatingRace] = useState(false);
@@ -492,7 +492,7 @@ export const HostDashboardPage: React.FC = () => {
 
                       <div className="sm:col-span-3">
                         <select
-                          value={cp.type}
+                          value={cp.type === 'SPLIT_AND_FINISH' ? 'FINISH' : cp.type}
                           onChange={(e) => {
                             const updated = [...wizardCheckpoints];
                             updated[idx].type = e.target.value as CheckpointType;
@@ -500,8 +500,8 @@ export const HostDashboardPage: React.FC = () => {
                           }}
                           className="w-full px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs"
                         >
-                          <option value="SPLIT">Split Gate</option>
-                          <option value="SPLIT_AND_FINISH">Finish Line</option>
+                          <option value="SPLIT">Split Gate (Split & Finish)</option>
+                          <option value="FINISH">Finish Line (Finish Only)</option>
                         </select>
                       </div>
 

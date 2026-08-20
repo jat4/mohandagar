@@ -95,7 +95,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     }
   }, [routeView, activeRace?.id]);
 
-  // Create Race Form state (BIB completely removed)
+  // Create Race Form state
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [raceName, setRaceName] = useState('5K Time Trial');
   const [runnerName, setRunnerName] = useState('Runner Name');
@@ -182,9 +182,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         { id: '1', name: 'Lap 1 (400m)', distanceMeters: 400, type: 'SPLIT', assignedStaffName: 'Phone A' },
         { id: '2', name: 'Lap 2 (800m)', distanceMeters: 800, type: 'SPLIT', assignedStaffName: 'Phone B' },
         { id: '3', name: 'Lap 3 (1200m)', distanceMeters: 1200, type: 'SPLIT', assignedStaffName: 'Phone C' },
-        { id: '4', name: 'Lap 4 / FINISH (1600m)', distanceMeters: 1600, type: 'SPLIT_AND_FINISH', assignedStaffName: 'Finish Line' }
+        { id: '4', name: 'Lap 4 / FINISH (1600m)', distanceMeters: 1600, type: 'FINISH', assignedStaffName: 'Finish Line' }
       ]);
-      showToast({ type: 'info', title: '1600m Template Loaded', message: 'Configured 4 track laps with finish gate.' });
+      showToast({ type: 'info', title: '1600m Template Loaded', message: 'Configured 4 track laps with finish line.' });
     } else if (type === '10k_1km') {
       setRaceName('10K Road Time Trial');
       setTotalPlannedDist(10000);
@@ -194,7 +194,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
           id: String(km),
           name: km === 10 ? '10K FINISH' : `KM ${km}`,
           distanceMeters: km * 1000,
-          type: km === 10 ? 'SPLIT_AND_FINISH' : 'SPLIT',
+          type: km === 10 ? 'FINISH' : 'SPLIT',
           assignedStaffName: ''
         }))
       );
@@ -209,7 +209,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         { id: '3', name: '1.5 km Split', distanceMeters: 1500, type: 'SPLIT', assignedStaffName: '' },
         { id: '4', name: '2.5 km Midpoint', distanceMeters: 2500, type: 'SPLIT', assignedStaffName: '' },
         { id: '5', name: '3.75 km Loop', distanceMeters: 3750, type: 'SPLIT', assignedStaffName: '' },
-        { id: '6', name: '5.0 km FINISH', distanceMeters: 5000, type: 'SPLIT_AND_FINISH', assignedStaffName: '' }
+        { id: '6', name: '5.0 km FINISH', distanceMeters: 5000, type: 'FINISH', assignedStaffName: '' }
       ]);
       showToast({ type: 'info', title: '5K Template Loaded', message: 'Configured 6 custom checkpoints.' });
     }
@@ -598,7 +598,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
 
               <form onSubmit={handleCreateRace} className="space-y-6">
                 
-                {/* Race General Details (BIB REMOVED) */}
+                {/* Race General Details */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-mono text-slate-400 mb-1.5">
@@ -764,7 +764,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] font-mono text-slate-400 shrink-0 w-16 sm:w-auto">Role:</span>
                             <select
-                              value={cp.type}
+                              value={cp.type === 'SPLIT_AND_FINISH' ? 'FINISH' : cp.type}
                               onChange={(e) => {
                                 const updated = [...wizardCheckpoints];
                                 updated[idx].type = e.target.value as CheckpointType;
@@ -772,8 +772,8 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                               }}
                               className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500 cursor-pointer"
                             >
-                              <option value="SPLIT">Split Only</option>
-                              <option value="SPLIT_AND_FINISH">Split OR Finish</option>
+                              <option value="SPLIT">Split Gate (Split & Finish)</option>
+                              <option value="FINISH">Finish Line (Finish Only)</option>
                             </select>
                           </div>
 

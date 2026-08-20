@@ -24,6 +24,8 @@ import { HostRaceResultsPage } from './pages/HostRaceResultsPage';
 import { JoinCheckpointPage } from './pages/JoinCheckpointPage';
 import { CheckpointScreenPage } from './pages/CheckpointScreenPage';
 import { ActivityResultPage } from './pages/ActivityResultPage';
+import { PublicResultsPage } from './pages/PublicResultsPage';
+import { PublicResultDetailPage } from './pages/PublicResultDetailPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 /**
@@ -101,10 +103,14 @@ export default function App() {
                 {/* 5. CHECKPOINT TIMING SCREEN */}
                 <Route path="/checkpoint/:checkpointId" element={<CheckpointScreenPage />} />
 
-                {/* 6. ACTIVITY RESULT */}
+                {/* 6. PUBLIC RACE RESULTS */}
+                <Route path="/results" element={<PublicResultsPage />} />
+                <Route path="/results/:resultId" element={<PublicResultDetailPage />} />
+
+                {/* 7. ACTIVITY RESULT */}
                 <Route path="/activity/:activityId" element={<ActivityResultPage />} />
 
-                {/* 7. 404 CATCH-ALL */}
+                {/* 8. 404 CATCH-ALL */}
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </main>

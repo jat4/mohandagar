@@ -286,7 +286,6 @@ export function calculateRaceStatistics(
   return {
     raceName: race.name,
     runnerName: race.runnerName,
-    runnerBib: race.runnerBib,
     dateFormatted: new Date(race.createdAt || Date.now()).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',

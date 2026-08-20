@@ -162,11 +162,11 @@ export const HostRaceCheckpointsPage: React.FC = () => {
                       {formatDistance(cp.distanceMeters, race.displayUnit)}
                     </span>
                     <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
-                      cp.type === 'SPLIT_AND_FINISH' 
+                      cp.type === 'FINISH' || cp.type === 'SPLIT_AND_FINISH'
                         ? 'bg-rose-950 text-rose-400 border border-rose-500/30' 
-                        : 'bg-slate-800 text-slate-400'
+                        : 'bg-cyan-950 text-cyan-400 border border-cyan-500/30'
                     }`}>
-                      {cp.type === 'SPLIT_AND_FINISH' ? 'Finish Gate' : 'Split Gate'}
+                      {cp.type === 'FINISH' || cp.type === 'SPLIT_AND_FINISH' ? 'Finish Line' : 'Split Gate'}
                     </span>
                   </div>
                   <h3 className="text-lg font-bold text-slate-100">
