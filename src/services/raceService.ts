@@ -14,7 +14,8 @@ import {
   onSnapshot, 
   query, 
   orderBy, 
-  where 
+  where,
+  limit 
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
@@ -380,6 +381,38 @@ export class RaceService {
       return snap.data() as JoinCodeMapping;
     } catch (error) {
       console.error('Resolve join code error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Find Race and Checkpoint by checkpointId
+   */
+  static async getRaceByCheckpointId(checkpointId: string, hintRaceId?: string): Promise<{ race: Race; checkpoint: Checkpoint } | null> {
+    try {
+      // 1. If hintRaceId is supplied, check directly
+      if (hintRaceId) {
+        const race = await this.getRace(hintRaceId);
+        if (race) {
+          const cp = race.checkpoints.find(c => c.id === checkpointId);
+          if (cp) return { race, checkpoint: cp };
+        }
+      }
+
+      // 2. Query recent races to locate this checkpoint
+      const q = query(collection(db, 'races'), orderBy('createdAt', 'desc'), limit(30));
+      const snaps = await getDocs(q);
+      for (const d of snaps.docs) {
+        const race = d.data() as Race;
+        const cp = race.checkpoints?.find(c => c.id === checkpointId);
+        if (cp) {
+          return { race, checkpoint: cp };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error finding checkpoint by ID:', error);
       return null;
     }
   }

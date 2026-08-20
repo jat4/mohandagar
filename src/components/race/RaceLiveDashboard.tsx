@@ -105,21 +105,21 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
   );
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="space-y-6 sm:space-y-8 animate-fadeIn">
       
       {/* Top Banner & Control Center */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl relative overflow-hidden">
         
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-800">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-6 border-b border-slate-800">
           <div>
             <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono font-bold tracking-wider uppercase mb-1">
               <Activity className="w-4 h-4 animate-pulse" />
               <span>Authoritative Live Race Controller</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-100 tracking-tight">
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-100 tracking-tight">
               {race.name}
             </h1>
-            <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-400 mt-1.5">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-mono text-slate-400 mt-2">
               <span>Runner: <strong className="text-slate-100 font-bold">{race.runnerName}</strong></span>
               <span>•</span>
               <span>Planned: <strong className="text-cyan-300">{formatDistance(race.totalPlannedDistanceMeters, race.displayUnit)}</strong></span>
@@ -137,12 +137,12 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             {isReady && (
               <button
                 onClick={handleStartRace}
                 disabled={starting}
-                className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black font-mono text-sm sm:text-base flex items-center gap-2.5 shadow-xl shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black font-mono text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer min-h-[48px]"
               >
                 <Play className="w-5 h-5 fill-slate-950" />
                 <span>{starting ? 'STARTING...' : 'START RACE'}</span>
@@ -153,7 +153,7 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
               <button
                 onClick={() => setShowFinishConfirm(true)}
                 disabled={finishing}
-                className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold font-mono text-sm flex items-center gap-2 shadow-lg shadow-rose-600/30 transition-all cursor-pointer"
+                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold font-mono text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30 transition-all cursor-pointer min-h-[48px]"
               >
                 <Flag className="w-4 h-4" />
                 <span>FINISH RACE</span>
@@ -163,7 +163,7 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
             {isFinished && (
               <button
                 onClick={onOpenSummary}
-                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
+                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer min-h-[48px]"
               >
                 <Trophy className="w-4 h-4" />
                 <span>View Full Activity & Export</span>
@@ -172,7 +172,7 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
 
             <button
               onClick={() => setShowResetConfirm(true)}
-              className="p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-colors cursor-pointer"
+              className="p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-colors cursor-pointer min-h-[48px] min-w-[48px] flex items-center justify-center"
               title="Reset Race"
             >
               <RotateCcw className="w-4 h-4" />
@@ -181,12 +181,12 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
         </div>
 
         {/* Center Live Stopwatch */}
-        <div className="my-8 text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">
+        <div className="my-6 sm:my-8 text-center px-1">
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
+            <span className="text-[11px] sm:text-xs font-mono text-slate-400 uppercase tracking-widest">
               Authoritative Cloud Synced Clock
             </span>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-[11px] font-mono">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-[10px] sm:text-[11px] font-mono">
               <span className={`w-1.5 h-1.5 rounded-full ${
                 timeSync.isSynced ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
               }`} />
@@ -214,17 +214,17 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
             finishTimestamp={race.finishTimestamp}
             isRunning={isRunning}
             size="hero"
-            className="text-cyan-300 font-mono"
+            className="text-cyan-300 font-mono py-2"
           />
 
           {/* Progress Bar */}
-          <div className="max-w-md mx-auto mt-6">
-            <div className="flex justify-between text-xs font-mono text-slate-400 mb-1.5">
-              <span>Completed: {stats.actualDistanceKm.toFixed(2)} km</span>
-              <span>{progressPercent.toFixed(0)}%</span>
-              <span>Planned: {(race.totalPlannedDistanceMeters / 1000).toFixed(2)} km</span>
+          <div className="max-w-md mx-auto mt-4 sm:mt-6">
+            <div className="flex justify-between text-[11px] sm:text-xs font-mono text-slate-400 mb-1.5">
+              <span>{stats.actualDistanceKm.toFixed(2)} km</span>
+              <span className="font-bold text-cyan-300">{progressPercent.toFixed(0)}%</span>
+              <span>{(race.totalPlannedDistanceMeters / 1000).toFixed(2)} km</span>
             </div>
-            <div className="h-3 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div className="h-2.5 sm:h-3 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
               <div
                 className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-500"
                 style={{ width: `${progressPercent}%` }}
@@ -234,28 +234,28 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
         </div>
 
         {/* Summary Metrics Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-slate-800">
-          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-5 sm:pt-6 border-t border-slate-800">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
             <div className="text-[10px] font-mono text-slate-500 uppercase">Current Distance</div>
-            <div className="text-xl font-mono font-bold text-cyan-300">
+            <div className="text-lg sm:text-xl font-mono font-bold text-cyan-300">
               {stats.actualDistanceKm.toFixed(2)} km
             </div>
           </div>
-          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
             <div className="text-[10px] font-mono text-slate-500 uppercase">Avg Pace</div>
-            <div className="text-xl font-mono font-bold text-amber-300">
+            <div className="text-lg sm:text-xl font-mono font-bold text-amber-300">
               {stats.averagePaceFormatted}
             </div>
           </div>
-          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
             <div className="text-[10px] font-mono text-slate-500 uppercase">Avg Speed</div>
-            <div className="text-xl font-mono font-bold text-emerald-300">
+            <div className="text-lg sm:text-xl font-mono font-bold text-emerald-300">
               {stats.averageSpeedFormatted}
             </div>
           </div>
-          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
             <div className="text-[10px] font-mono text-slate-500 uppercase">Splits Recorded</div>
-            <div className="text-xl font-mono font-bold text-slate-200">
+            <div className="text-lg sm:text-xl font-mono font-bold text-slate-200">
               {stats.recordedCheckpointsCount} / {stats.totalCheckpointsCount}
             </div>
           </div>
@@ -264,20 +264,20 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
       </div>
 
       {/* Checkpoint Live Table & Staff Devices */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-800">
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-800">
           <div>
-            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2">
               <Zap className="w-5 h-5 text-cyan-400" />
               <span>Checkpoints & Assigned Devices</span>
             </h2>
-            <p className="text-xs text-slate-400 font-mono mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-400 font-mono mt-0.5">
               Live status of checkpoint timing devices, join codes, and recorded split segments
             </p>
           </div>
 
-          <div className="text-xs font-mono text-slate-400">
-            Click <strong className="text-cyan-300">"Time CP as Host"</strong> on any checkpoint to open its timer directly on this device.
+          <div className="text-[11px] sm:text-xs font-mono text-slate-400">
+            Click <strong className="text-cyan-300">"Time as Host"</strong> to record splits on this device.
           </div>
         </div>
 

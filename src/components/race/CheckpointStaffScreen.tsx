@@ -195,7 +195,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   const stats = calculateRaceStatistics(race, events);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 max-w-lg mx-auto">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-3 sm:p-6 max-w-lg mx-auto space-y-4 sm:space-y-6">
       
       {/* Top Header Bar */}
       <div className="space-y-3">
@@ -241,9 +241,9 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         </div>
 
         {/* Checkpoint & Runner Header Card */}
-        <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
-          <div className="flex items-start justify-between">
-            <div>
+        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
                 {isFinalGate ? (
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-500/30">
@@ -259,17 +259,17 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
                   </span>
                 )}
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-100">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-100 truncate">
                 {checkpoint.name}
               </h1>
-              <div className="text-sm font-mono text-cyan-300 font-semibold mt-0.5">
+              <div className="text-xs sm:text-sm font-mono text-cyan-300 font-semibold mt-0.5">
                 Distance: {formatDistance(checkpoint.distanceMeters, race.displayUnit)}
               </div>
             </div>
 
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <span className="text-[10px] font-mono text-slate-400 block">Race</span>
-              <span className="text-xs font-bold text-slate-200 block truncate max-w-[130px]">
+              <span className="text-xs font-bold text-slate-200 block truncate max-w-[120px] sm:max-w-[150px]">
                 {race.name}
               </span>
               <span className="text-xs text-slate-300 font-mono font-bold block mt-0.5">
@@ -278,7 +278,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono text-slate-400">
+          <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono text-slate-400">
             <div>Staff: <strong className="text-slate-200">{staffName}</strong></div>
             <div>Device: <strong className="text-slate-300">{deviceName}</strong></div>
           </div>
@@ -286,9 +286,9 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
       </div>
 
       {/* Center Live Stopwatch Block */}
-      <div className="my-6 text-center space-y-3">
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-xs font-mono text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+      <div className="my-2 sm:my-4 text-center space-y-3">
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="text-[11px] sm:text-xs font-mono text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
             <Timer className="w-3.5 h-3.5 text-cyan-400" />
             <span>Synchronized Race Time</span>
           </span>
@@ -312,16 +312,16 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
           </div>
         </div>
 
-        <div className="p-6 rounded-3xl bg-slate-900/90 border border-cyan-500/20 shadow-2xl shadow-cyan-500/5">
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-cyan-500/20 shadow-2xl shadow-cyan-500/5">
           <RaceTimerClock
             startTimestamp={race.startTimestamp}
             finishTimestamp={race.finishTimestamp}
             isRunning={isRunning}
             size="lg"
-            className="text-cyan-300"
+            className="text-cyan-300 py-1"
           />
 
-          <div className="mt-3 text-xs font-mono">
+          <div className="mt-2 text-xs font-mono">
             {race.status === 'READY' && (
               <span className="text-amber-400">Waiting for Host to start race...</span>
             )}
@@ -336,14 +336,14 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
 
         {/* Recorded Split/Finish Confirmation Banner */}
         {hasRecorded && thisCheckpointEvent && (
-          <div className="p-4 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-mono text-left flex items-center justify-between shadow-lg animate-fadeIn">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-mono text-left flex items-center justify-between shadow-lg animate-fadeIn">
             <div className="flex items-center gap-2.5">
               <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
               <div>
-                <div className="font-bold text-sm">
+                <div className="font-bold text-xs sm:text-sm">
                   {thisCheckpointEvent.eventType === 'FINISH' ? 'Official Finish Recorded' : 'Checkpoint Split Recorded'}: {formatTimeMs(thisCheckpointEvent.elapsedMs)}
                 </div>
-                <div className="text-[11px] text-emerald-400/80">Saved & Synchronized to Cloud Database</div>
+                <div className="text-[10px] sm:text-[11px] text-emerald-400/80">Saved & Synchronized to Cloud Database</div>
               </div>
             </div>
           </div>
@@ -360,23 +360,23 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
               <button
                 onClick={() => setShowFinishConfirmModal(true)}
                 disabled={submitting || hasRecorded}
-                className={`w-full py-6 rounded-2xl font-mono text-xl sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer ${
+                className={`w-full py-4 sm:py-6 rounded-2xl font-mono text-lg sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer min-h-[56px] ${
                   hasRecorded
                     ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
                     : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-600/30 active:scale-[0.98]'
                 }`}
               >
-                <Flag className="w-6 h-6" />
+                <Flag className="w-5 h-5 sm:w-6 h-6" />
                 <span>{hasRecorded ? 'FINISH RECORDED' : 'RECORD OFFICIAL FINISH'}</span>
               </button>
             ) : checkpoint.type === 'SPLIT_AND_FINISH' ? (
               /* CASE 2: Intermediate Checkpoint WITH Split + Finish Authority */
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {/* Primary Button: Record Split */}
                 <button
                   onClick={handleRecordSplit}
                   disabled={submitting || hasRecorded}
-                  className={`w-full py-5 rounded-2xl font-mono text-lg sm:text-xl font-black flex items-center justify-center gap-2.5 shadow-xl transition-all cursor-pointer ${
+                  className={`w-full py-4 sm:py-5 rounded-2xl font-mono text-base sm:text-xl font-black flex items-center justify-center gap-2.5 shadow-xl transition-all cursor-pointer min-h-[52px] ${
                     hasRecorded
                       ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
                       : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-cyan-500/30 active:scale-[0.98]'
@@ -391,7 +391,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
                   <button
                     onClick={() => setShowFinishConfirmModal(true)}
                     disabled={submitting}
-                    className="w-full py-3 rounded-xl font-mono text-xs font-bold bg-slate-900 hover:bg-rose-950/80 text-rose-400 hover:text-rose-300 border border-rose-900/50 hover:border-rose-500/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    className="w-full py-3 rounded-xl font-mono text-xs font-bold bg-slate-900 hover:bg-rose-950/80 text-rose-400 hover:text-rose-300 border border-rose-900/50 hover:border-rose-500/40 flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[44px]"
                   >
                     <StopCircle className="w-4 h-4 text-rose-400" />
                     <span>Runner Stopped Here? End & Finish Race</span>
@@ -404,13 +404,13 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
                 <button
                   onClick={handleRecordSplit}
                   disabled={submitting || hasRecorded}
-                  className={`w-full py-6 rounded-2xl font-mono text-xl sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer ${
+                  className={`w-full py-4 sm:py-6 rounded-2xl font-mono text-lg sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer min-h-[56px] ${
                     hasRecorded
                       ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
                       : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-cyan-500/30 active:scale-[0.98]'
                   }`}
                 >
-                  <Zap className="w-6 h-6 fill-current" />
+                  <Zap className="w-5 h-5 sm:w-6 h-6 fill-current" />
                   <span>{hasRecorded ? 'SPLIT RECORDED' : 'RECORD SPLIT'}</span>
                 </button>
                 <div className="text-center text-[10px] font-mono text-slate-500">
@@ -424,7 +424,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
               <button
                 onClick={() => setShowFinishConfirmModal(true)}
                 disabled={submitting}
-                className="w-full py-2.5 rounded-xl font-mono text-xs font-bold bg-slate-900 hover:bg-slate-800 text-rose-400 border border-rose-900/50 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                className="w-full py-2.5 rounded-xl font-mono text-xs font-bold bg-slate-900 hover:bg-slate-800 text-rose-400 border border-rose-900/50 flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[44px]"
               >
                 <Flag className="w-3.5 h-3.5" />
                 <span>Host Override: Finish Race Here</span>

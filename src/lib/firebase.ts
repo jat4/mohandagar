@@ -3,6 +3,9 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   type User
@@ -101,6 +104,29 @@ export async function signInWithGoogle(): Promise<User | null> {
     return result.user;
   } catch (error) {
     console.error("Google sign-in error:", error);
+    throw error;
+  }
+}
+
+export async function signInWithEmail(email: string, pass: string): Promise<User> {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email.trim(), pass);
+    return result.user;
+  } catch (error) {
+    console.error("Email sign-in error:", error);
+    throw error;
+  }
+}
+
+export async function signUpWithEmail(email: string, pass: string, displayName?: string): Promise<User> {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email.trim(), pass);
+    if (displayName && displayName.trim()) {
+      await updateProfile(result.user, { displayName: displayName.trim() });
+    }
+    return result.user;
+  } catch (error) {
+    console.error("Email sign-up error:", error);
     throw error;
   }
 }

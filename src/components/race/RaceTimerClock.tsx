@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 import { formatTimeMs } from '../../utils/raceCalculations';
 import { TimeSyncService } from '../../services/timeSyncService';
@@ -57,16 +62,16 @@ export const RaceTimerClock: React.FC<RaceTimerClockProps> = ({
   }, [startTimestamp, finishTimestamp, isRunning]);
 
   const sizeClasses = {
-    sm: 'text-xl sm:text-2xl font-mono tracking-tight font-bold',
-    md: 'text-3xl sm:text-4xl font-mono tracking-tight font-extrabold',
-    lg: 'text-5xl sm:text-6xl font-mono tracking-tight font-black',
-    hero: 'text-6xl sm:text-7xl md:text-8xl font-mono tracking-tighter font-black'
+    sm: 'text-base sm:text-lg md:text-xl font-mono tracking-tight font-bold whitespace-nowrap',
+    md: 'text-2xl sm:text-3xl md:text-4xl font-mono tracking-tight font-extrabold whitespace-nowrap',
+    lg: 'text-3xl sm:text-5xl md:text-6xl font-mono tracking-tight font-black whitespace-nowrap',
+    hero: 'text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-mono tracking-tighter font-black whitespace-nowrap'
   };
 
   const formatted = formatTimeMs(elapsedMs, true);
 
   return (
-    <div className={`tabular-nums select-none ${className}`}>
+    <div className={`tabular-nums select-none flex justify-center items-center overflow-hidden ${className}`}>
       <span className={sizeClasses[size]}>{formatted}</span>
     </div>
   );

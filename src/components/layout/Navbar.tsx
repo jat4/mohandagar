@@ -1,0 +1,337 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { 
+  Timer, 
+  QrCode, 
+  LogIn, 
+  LogOut, 
+  User, 
+  History, 
+  Share2, 
+  Check, 
+  ChevronRight, 
+  Home, 
+  Layers,
+  Sparkles,
+  Menu,
+  X
+} from 'lucide-react';
+
+export const Navbar: React.FC = () => {
+  const { currentUser, signOutUser, isHost } = useAuth();
+  const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleCopyCurrentLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedUrl(true);
+      showToast({
+        type: 'info',
+        title: 'URL Copied',
+        message: 'Direct link copied to clipboard.'
+      });
+      setTimeout(() => setCopiedUrl(false), 2000);
+    }).catch(console.error);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOutUser();
+      showToast({
+        type: 'info',
+        title: 'Signed Out',
+        message: 'You have been signed out.'
+      });
+      navigate('/home');
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  // Generate dynamic breadcrumbs based on pathname
+  const getBreadcrumbs = () => {
+    const path = location.pathname;
+    const parts = path.split('/').filter(Boolean);
+    const crumbs: Array<{ label: string; to?: string }> = [
+      { label: 'Home', to: '/home' }
+    ];
+
+    if (parts.length === 0 || parts[0] === 'home') {
+      return crumbs;
+    }
+
+    if (parts[0] === 'login') {
+      crumbs.push({ label: 'Host Login' });
+    } else if (parts[0] === 'register') {
+      crumbs.push({ label: 'Register Host' });
+    } else if (parts[0] === 'join') {
+      if (parts[1]) {
+        crumbs.push({ label: 'Join Checkpoint', to: '/join' });
+        crumbs.push({ label: `Code: ${parts[1]}` });
+      } else {
+        crumbs.push({ label: 'Join Checkpoint' });
+      }
+    } else if (parts[0] === 'checkpoint') {
+      crumbs.push({ label: 'Staff Join', to: '/join' });
+      crumbs.push({ label: `Gate Timing: ${parts[1] || ''}` });
+    } else if (parts[0] === 'activity') {
+      crumbs.push({ label: 'Activity Results', to: '/home' });
+      crumbs.push({ label: `Record: ${parts[1] || ''}` });
+    } else if (parts[0] === 'host') {
+      if (parts.length === 1) {
+        crumbs.push({ label: 'Host Dashboard' });
+      } else if (parts[1] === 'races') {
+        crumbs.push({ label: 'Host Dashboard', to: '/host' });
+        crumbs.push({ label: 'Race History' });
+      } else if (parts[1] === 'race' && parts[2]) {
+        crumbs.push({ label: 'Host Dashboard', to: '/host' });
+        crumbs.push({ label: `Race Controller`, to: `/host/race/${parts[2]}` });
+        if (parts[3] === 'checkpoints') {
+          crumbs.push({ label: 'Checkpoints & QR' });
+        } else if (parts[3] === 'results') {
+          crumbs.push({ label: 'Results & Analytics' });
+        }
+      }
+    }
+
+    return crumbs;
+  };
+
+  const breadcrumbs = getBreadcrumbs();
+
+  return (
+    <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-800/80 sticky top-0 z-50 shadow-lg shadow-black/40">
+      
+      {/* Primary Bar */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        
+        {/* Brand Logo & Direct Home Link */}
+        <Link 
+          to="/home" 
+          className="flex items-center gap-3 group shrink-0"
+        >
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 p-[1px] shadow-lg shadow-cyan-500/20 group-hover:shadow-cyan-500/40 transition-all">
+            <div className="w-full h-full bg-slate-950 rounded-[11px] flex items-center justify-center">
+              <Timer className="w-5 h-5 text-cyan-400" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 font-mono font-black text-base tracking-tight text-slate-100 group-hover:text-cyan-400 transition-colors">
+              <span>RUNNER</span>
+              <span className="text-cyan-400">STOPWATCH</span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>mohandagar.in</span>
+            </div>
+          </div>
+        </Link>
+
+        {/* Desktop Navigation Links */}
+        <nav className="hidden md:flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 font-mono text-xs font-bold">
+          <NavLink
+            to="/home"
+            className={({ isActive }) =>
+              `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                isActive
+                  ? 'bg-slate-800 text-cyan-400 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`
+            }
+          >
+            <Home className="w-3.5 h-3.5" />
+            <span>Home</span>
+          </NavLink>
+
+          <NavLink
+            to="/join"
+            className={({ isActive }) =>
+              `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                isActive || location.pathname.startsWith('/join') || location.pathname.startsWith('/checkpoint')
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`
+            }
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            <span>Staff Join</span>
+          </NavLink>
+
+          <NavLink
+            to="/host"
+            className={({ isActive }) =>
+              `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                isActive || (location.pathname.startsWith('/host') && !location.pathname.startsWith('/host/races'))
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 shadow-md shadow-emerald-500/20'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`
+            }
+          >
+            <Timer className="w-3.5 h-3.5" />
+            <span>Host Controller</span>
+          </NavLink>
+
+          {isHost && (
+            <NavLink
+              to="/host/races"
+              className={({ isActive }) =>
+                `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                  isActive
+                    ? 'bg-slate-800 text-cyan-400 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`
+              }
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Race History</span>
+            </NavLink>
+          )}
+        </nav>
+
+        {/* Right Action Icons & Auth User */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          
+          {/* Direct Link Share Button */}
+          <button
+            onClick={handleCopyCurrentLink}
+            title="Copy link to current page/checkpoint"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 border border-slate-700 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            {copiedUrl ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span className="hidden lg:inline text-emerald-400 font-bold">Link Copied!</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4" />
+                <span className="hidden lg:inline">Share URL</span>
+              </>
+            )}
+          </button>
+
+          {/* Auth State Button */}
+          {currentUser ? (
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex flex-col text-right font-mono text-[11px]">
+                <span className="text-slate-200 font-bold truncate max-w-[130px]">
+                  {currentUser.displayName || currentUser.email?.split('@')[0]}
+                </span>
+                <span className="text-cyan-400 text-[10px]">Host Active</span>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                title="Sign out from Host"
+                className="p-2 rounded-xl bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-500/40 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <Link
+              to="/login"
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-cyan-400 text-xs font-mono font-bold flex items-center gap-1.5 transition-all"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline">Host Login</span>
+            </Link>
+          )}
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+
+        </div>
+
+      </div>
+
+      {/* Mobile Drawer Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-slate-950 border-b border-slate-800 px-4 py-3 space-y-2 animate-fadeIn font-mono text-xs">
+          <Link
+            to="/home"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block py-2.5 px-3 rounded-lg bg-slate-900 text-slate-200"
+          >
+            Home Overview
+          </Link>
+          <Link
+            to="/join"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block py-2.5 px-3 rounded-lg bg-slate-900 text-cyan-400 font-bold"
+          >
+            Staff Checkpoint Join
+          </Link>
+          <Link
+            to="/host"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block py-2.5 px-3 rounded-lg bg-slate-900 text-emerald-400 font-bold"
+          >
+            Host Controller Dashboard
+          </Link>
+          {isHost && (
+            <Link
+              to="/host/races"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2.5 px-3 rounded-lg bg-slate-900 text-slate-300"
+            >
+              Past Races & Results History
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Dynamic Breadcrumbs Sub-Bar */}
+      <div className="bg-slate-950/80 border-t border-slate-800/60 px-4 sm:px-6 lg:px-8 py-1.5">
+        <div className="max-w-7xl mx-auto flex items-center justify-between text-xs font-mono text-slate-400 overflow-x-auto whitespace-nowrap scrollbar-none">
+          
+          <nav className="flex items-center gap-1.5" aria-label="Breadcrumb">
+            {breadcrumbs.map((crumb, idx) => (
+              <React.Fragment key={idx}>
+                {idx > 0 && <ChevronRight className="w-3 h-3 text-slate-600 shrink-0" />}
+                {idx === breadcrumbs.length - 1 || !crumb.to ? (
+                  <span className="text-cyan-400 font-bold truncate max-w-[220px] sm:max-w-none">
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <Link
+                    to={crumb.to}
+                    className="hover:text-slate-200 transition-colors truncate"
+                  >
+                    {crumb.label}
+                  </Link>
+                )}
+              </React.Fragment>
+            ))}
+          </nav>
+
+          <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-500">
+            <span>URL:</span>
+            <code className="bg-slate-900 px-2 py-0.5 rounded text-cyan-300/80 border border-slate-800">
+              {location.pathname}
+            </code>
+          </div>
+
+        </div>
+      </div>
+
+    </header>
+  );
+};
