@@ -8,7 +8,10 @@ import {
   Race, 
   Checkpoint, 
   TimingEvent, 
-  StaffSession 
+  StaffSession,
+  normalizeCheckpointType,
+  isSplitAllowed,
+  isFinishAllowed
 } from '../../types/race';
 import { RaceService } from '../../services/raceService';
 import { useTimeSync, TimeSyncService } from '../../services/timeSyncService';
@@ -126,7 +129,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
       return;
     }
 
-    if (isFinishLine) {
+    if (!isSplitAllowed(checkpoint.type)) {
       showToast({ type: 'error', title: 'Action Not Allowed', message: 'This is a Finish Line checkpoint. Only finish events can be recorded.' });
       return;
     }
@@ -211,7 +214,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         raceStartTimestamp: race.startTimestamp,
         capturedTimestamp: pendingFinish.capturedTimestamp,
         capturedElapsedMs: pendingFinish.capturedElapsedMs,
-        checkpointType: isFinishLine ? 'FINISH' : 'SPLIT'
+        checkpointType: checkpoint.type
       });
       setSyncStatus('SAVED');
       setShowFinishConfirmModal(false);
@@ -241,7 +244,11 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
     setPendingFinish(null);
   };
 
-  const isFinishLine = checkpoint.type === 'FINISH' || checkpoint.type === 'SPLIT_AND_FINISH';
+  const normalizedType = normalizeCheckpointType(checkpoint.type);
+  const isFinishOnly = normalizedType === 'finish';
+  const isSplitOnly = normalizedType === 'splitOnly';
+  const isSplitFinish = normalizedType === 'splitFinish';
+
   const isRunning = race.status === 'RUNNING';
   const isFinished = race.status === 'FINISHED';
 
@@ -298,13 +305,17 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
-                {isFinishLine ? (
+                {isFinishOnly ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-500/30">
-                    🏁 FINISH LINE (FINISH ONLY)
+                    🏁 FINISH LINE (FINISH ONLY) 🔒
+                  </span>
+                ) : isSplitFinish ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/30">
+                    ⚡ SPLIT GATE (SPLIT & FINISH)
                   </span>
                 ) : (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/30">
-                    ⚡ SPLIT GATE
+                    ⚡ SPLIT (SPLIT ONLY)
                   </span>
                 )}
               </div>
@@ -405,7 +416,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
           <div className="space-y-3">
             
             {/* CASE 1: Finish Line (Finish ONLY - NO Split Button) */}
-            {isFinishLine ? (
+            {isFinishOnly && (
               <div className="space-y-2">
                 <button
                   onClick={handleTriggerFinishCapture}
@@ -420,11 +431,34 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
                   <span>{hasRecorded && thisCheckpointEvent?.eventType === 'FINISH' ? 'FINISH RECORDED' : 'FINISH'}</span>
                 </button>
                 <div className="text-center text-[11px] font-mono text-slate-400">
-                  Finish Line • Finish Only (No Split)
+                  Finish Line • Finish Only (No Split) 🔒
                 </div>
               </div>
-            ) : (
-              /* CASE 2: Split Gate (Allows BOTH [SPLIT] and [FINISH]) */
+            )}
+
+            {/* CASE 2: Split (Split ONLY - NO Finish Button) */}
+            {isSplitOnly && (
+              <div className="space-y-2">
+                <button
+                  onClick={handleRecordSplit}
+                  disabled={submitting || (hasRecorded && thisCheckpointEvent?.eventType === 'SPLIT') || Boolean(pendingFinish)}
+                  className={`w-full py-5 sm:py-6 rounded-2xl font-mono text-lg sm:text-2xl font-black flex items-center justify-center gap-2.5 shadow-xl transition-all cursor-pointer min-h-[60px] ${
+                    hasRecorded && thisCheckpointEvent?.eventType === 'SPLIT'
+                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                      : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-cyan-500/30 active:scale-[0.98]'
+                  }`}
+                >
+                  <Zap className="w-6 h-6 fill-current" />
+                  <span>{hasRecorded && thisCheckpointEvent?.eventType === 'SPLIT' ? 'SPLIT RECORDED' : 'SPLIT'}</span>
+                </button>
+                <div className="text-center text-[11px] font-mono text-slate-400">
+                  Split • Split Only (No Finish)
+                </div>
+              </div>
+            )}
+
+            {/* CASE 3: Split Gate (Split & Finish - Allows BOTH [SPLIT] and [FINISH]) */}
+            {isSplitFinish && (
               <div className="space-y-2.5">
                 {/* [SPLIT] Button */}
                 <button
@@ -454,7 +488,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
                   <span>{hasRecorded && thisCheckpointEvent?.eventType === 'FINISH' ? 'FINISH RECORDED' : 'FINISH'}</span>
                 </button>
                 <div className="text-center text-[10px] font-mono text-slate-500">
-                  Split Gate • Press [SPLIT] for interval split, or [FINISH] to end race here
+                  Split Gate (Split & Finish) • Press [SPLIT] for interval split, or [FINISH] to end race here
                 </div>
               </div>
             )}

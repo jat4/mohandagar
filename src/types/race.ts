@@ -2,7 +2,32 @@ export type RaceStatus = 'SETUP' | 'READY' | 'RUNNING' | 'FINISHED' | 'CANCELLED
 
 export type DistanceUnit = 'METERS' | 'KILOMETERS' | 'MILES';
 
-export type CheckpointType = 'SPLIT' | 'FINISH' | 'SPLIT_AND_FINISH';
+export type CheckpointType = 
+  | 'splitFinish' 
+  | 'splitOnly' 
+  | 'finish' 
+  // Backward compatibility types
+  | 'SPLIT' 
+  | 'FINISH' 
+  | 'SPLIT_AND_FINISH';
+
+export function normalizeCheckpointType(type?: string): 'splitFinish' | 'splitOnly' | 'finish' {
+  if (!type) return 'splitFinish';
+  if (type === 'finish' || type === 'FINISH') return 'finish';
+  if (type === 'splitOnly' || type === 'SPLIT') return 'splitOnly';
+  if (type === 'splitFinish' || type === 'SPLIT_AND_FINISH') return 'splitFinish';
+  return 'splitFinish';
+}
+
+export function isSplitAllowed(type?: string): boolean {
+  const norm = normalizeCheckpointType(type);
+  return norm === 'splitFinish' || norm === 'splitOnly';
+}
+
+export function isFinishAllowed(type?: string): boolean {
+  const norm = normalizeCheckpointType(type);
+  return norm === 'splitFinish' || norm === 'finish';
+}
 
 export type TimingEventType = 'START' | 'SPLIT' | 'FINISH';
 

@@ -10,7 +10,8 @@ import {
   CheckpointType, 
   TimingEvent, 
   StaffSession, 
-  DistanceUnit 
+  DistanceUnit,
+  normalizeCheckpointType
 } from '../../types/race';
 import { RaceService } from '../../services/raceService';
 import { signInWithGoogle, signOutUser, auth } from '../../lib/firebase';
@@ -102,7 +103,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const [totalPlannedDist, setTotalPlannedDist] = useState<number>(5000); // 5000m
   const [displayUnit, setDisplayUnit] = useState<DistanceUnit>('KILOMETERS');
 
-  // Checkpoints list for new race
+  // Checkpoints list for new race (Matches example structure: 4 normal checkpoints + 1 locked finish line)
   const [wizardCheckpoints, setWizardCheckpoints] = useState<Array<{
     id: string;
     name: string;
@@ -110,11 +111,11 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     type: CheckpointType;
     assignedStaffName: string;
   }>>([
-    { id: '1', name: 'CP 1 (Turn 1)', distanceMeters: 1000, type: 'SPLIT', assignedStaffName: 'Phone A' },
-    { id: '2', name: 'CP 2 (Midpoint)', distanceMeters: 2000, type: 'SPLIT', assignedStaffName: 'Phone B' },
-    { id: '3', name: 'CP 3 (Turn 3)', distanceMeters: 3000, type: 'SPLIT', assignedStaffName: 'Phone C' },
-    { id: '4', name: 'CP 4 (Final Loop)', distanceMeters: 4000, type: 'SPLIT', assignedStaffName: 'Phone D' },
-    { id: '5', name: 'FINISH GATE', distanceMeters: 5000, type: 'SPLIT_AND_FINISH', assignedStaffName: 'Finish Line' }
+    { id: '1', name: 'CP 1 (1000m)', distanceMeters: 1000, type: 'splitFinish', assignedStaffName: 'Phone A' },
+    { id: '2', name: 'CP 2 (2000m)', distanceMeters: 2000, type: 'splitOnly', assignedStaffName: 'Phone B' },
+    { id: '3', name: 'CP 3 (3000m)', distanceMeters: 3000, type: 'splitFinish', assignedStaffName: 'Phone C' },
+    { id: '4', name: 'CP 4 (4000m)', distanceMeters: 4000, type: 'splitOnly', assignedStaffName: 'Phone D' },
+    { id: '5', name: 'FINISH LINE', distanceMeters: 5000, type: 'finish', assignedStaffName: 'Finish Line' }
   ]);
 
   const [creatingRace, setCreatingRace] = useState(false);
@@ -179,12 +180,12 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
       setTotalPlannedDist(1600);
       setDisplayUnit('METERS');
       setWizardCheckpoints([
-        { id: '1', name: 'Lap 1 (400m)', distanceMeters: 400, type: 'SPLIT', assignedStaffName: 'Phone A' },
-        { id: '2', name: 'Lap 2 (800m)', distanceMeters: 800, type: 'SPLIT', assignedStaffName: 'Phone B' },
-        { id: '3', name: 'Lap 3 (1200m)', distanceMeters: 1200, type: 'SPLIT', assignedStaffName: 'Phone C' },
-        { id: '4', name: 'Lap 4 / FINISH (1600m)', distanceMeters: 1600, type: 'FINISH', assignedStaffName: 'Finish Line' }
+        { id: '1', name: 'Lap 1 (400m)', distanceMeters: 400, type: 'splitFinish', assignedStaffName: 'Phone A' },
+        { id: '2', name: 'Lap 2 (800m)', distanceMeters: 800, type: 'splitOnly', assignedStaffName: 'Phone B' },
+        { id: '3', name: 'Lap 3 (1200m)', distanceMeters: 1200, type: 'splitFinish', assignedStaffName: 'Phone C' },
+        { id: '4', name: 'FINISH LINE (1600m)', distanceMeters: 1600, type: 'finish', assignedStaffName: 'Finish Line' }
       ]);
-      showToast({ type: 'info', title: '1600m Template Loaded', message: 'Configured 4 track laps with finish line.' });
+      showToast({ type: 'info', title: '1600m Template Loaded', message: 'Configured 4 track laps with locked finish line.' });
     } else if (type === '10k_1km') {
       setRaceName('10K Road Time Trial');
       setTotalPlannedDist(10000);
@@ -194,7 +195,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
           id: String(km),
           name: km === 10 ? '10K FINISH' : `KM ${km}`,
           distanceMeters: km * 1000,
-          type: km === 10 ? 'FINISH' : 'SPLIT',
+          type: (km === 10 ? 'finish' : (km % 2 === 1 ? 'splitFinish' : 'splitOnly')) as CheckpointType,
           assignedStaffName: ''
         }))
       );
@@ -204,30 +205,43 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
       setTotalPlannedDist(5000);
       setDisplayUnit('KILOMETERS');
       setWizardCheckpoints([
-        { id: '1', name: '500m Mark', distanceMeters: 500, type: 'SPLIT', assignedStaffName: '' },
-        { id: '2', name: '1.0 km Split', distanceMeters: 1000, type: 'SPLIT', assignedStaffName: '' },
-        { id: '3', name: '1.5 km Split', distanceMeters: 1500, type: 'SPLIT', assignedStaffName: '' },
-        { id: '4', name: '2.5 km Midpoint', distanceMeters: 2500, type: 'SPLIT', assignedStaffName: '' },
-        { id: '5', name: '3.75 km Loop', distanceMeters: 3750, type: 'SPLIT', assignedStaffName: '' },
-        { id: '6', name: '5.0 km FINISH', distanceMeters: 5000, type: 'FINISH', assignedStaffName: '' }
+        { id: '1', name: 'CP 1 (1000m)', distanceMeters: 1000, type: 'splitFinish', assignedStaffName: '' },
+        { id: '2', name: 'CP 2 (2000m)', distanceMeters: 2000, type: 'splitOnly', assignedStaffName: '' },
+        { id: '3', name: 'CP 3 (3000m)', distanceMeters: 3000, type: 'splitFinish', assignedStaffName: '' },
+        { id: '4', name: 'CP 4 (4000m)', distanceMeters: 4000, type: 'splitOnly', assignedStaffName: '' },
+        { id: '5', name: 'FINISH LINE', distanceMeters: 5000, type: 'finish', assignedStaffName: 'Finish Line' }
       ]);
-      showToast({ type: 'info', title: '5K Template Loaded', message: 'Configured 6 custom checkpoints.' });
+      showToast({ type: 'info', title: '5K Template Loaded', message: 'Configured 5 checkpoints matching official structure.' });
     }
   };
 
   const handleAddCheckpoint = () => {
-    const lastDist = wizardCheckpoints.length > 0 
-      ? wizardCheckpoints[wizardCheckpoints.length - 1].distanceMeters + 1000
-      : 1000;
+    const count = wizardCheckpoints.length;
+    if (count === 0) {
+      setWizardCheckpoints([
+        { id: String(Date.now()), name: 'FINISH LINE', distanceMeters: 5000, type: 'finish', assignedStaffName: '' }
+      ]);
+      return;
+    }
+
+    const lastCp = wizardCheckpoints[count - 1];
+    const prevDist = count > 1 ? wizardCheckpoints[count - 2].distanceMeters : 0;
+    const newDist = Math.max(prevDist + 500, Math.round((prevDist + lastCp.distanceMeters) / 2)) || (lastCp.distanceMeters > 500 ? lastCp.distanceMeters - 500 : lastCp.distanceMeters);
 
     const newCp = {
       id: String(Date.now()),
-      name: `Checkpoint ${wizardCheckpoints.length + 1}`,
-      distanceMeters: lastDist,
-      type: 'SPLIT' as CheckpointType,
+      name: `CP ${count}`,
+      distanceMeters: newDist,
+      type: 'splitFinish' as CheckpointType,
       assignedStaffName: ''
     };
-    setWizardCheckpoints([...wizardCheckpoints, newCp]);
+
+    const updated = [
+      ...wizardCheckpoints.slice(0, count - 1),
+      newCp,
+      { ...lastCp, type: 'finish' as CheckpointType }
+    ];
+    setWizardCheckpoints(updated);
   };
 
   const handleRemoveCheckpoint = (index: number) => {
@@ -237,6 +251,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     }
     const updated = [...wizardCheckpoints];
     updated.splice(index, 1);
+    // Ensure final checkpoint is always 'finish'
+    const lastIdx = updated.length - 1;
+    updated[lastIdx] = { ...updated[lastIdx], type: 'finish' as CheckpointType };
     setWizardCheckpoints(updated);
   };
 
@@ -249,6 +266,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     const temp = updated[index];
     updated[index] = updated[targetIdx];
     updated[targetIdx] = temp;
+    // Ensure final checkpoint is always 'finish'
+    const lastIdx = updated.length - 1;
+    updated[lastIdx] = { ...updated[lastIdx], type: 'finish' as CheckpointType };
     setWizardCheckpoints(updated);
   };
 
@@ -762,19 +782,26 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-mono text-slate-400 shrink-0 w-16 sm:w-auto">Role:</span>
-                            <select
-                              value={cp.type === 'SPLIT_AND_FINISH' ? 'FINISH' : cp.type}
-                              onChange={(e) => {
-                                const updated = [...wizardCheckpoints];
-                                updated[idx].type = e.target.value as CheckpointType;
-                                setWizardCheckpoints(updated);
-                              }}
-                              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500 cursor-pointer"
-                            >
-                              <option value="SPLIT">Split Gate (Split & Finish)</option>
-                              <option value="FINISH">Finish Line (Finish Only)</option>
-                            </select>
+                            <span className="text-[11px] font-mono text-slate-400 shrink-0 w-16 sm:w-auto">Type:</span>
+                            {idx === wizardCheckpoints.length - 1 ? (
+                              <div className="w-full px-2.5 py-1.5 rounded-lg bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs font-mono font-bold flex items-center justify-between select-none">
+                                <span>Finish Line (Finish Only)</span>
+                                <span>🔒</span>
+                              </div>
+                            ) : (
+                              <select
+                                value={normalizeCheckpointType(cp.type) === 'splitOnly' ? 'splitOnly' : 'splitFinish'}
+                                onChange={(e) => {
+                                  const updated = [...wizardCheckpoints];
+                                  updated[idx].type = e.target.value as CheckpointType;
+                                  setWizardCheckpoints(updated);
+                                }}
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500 cursor-pointer"
+                              >
+                                <option value="splitFinish">Split Gate (Split & Finish)</option>
+                                <option value="splitOnly">Split (Split Only)</option>
+                              </select>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2">

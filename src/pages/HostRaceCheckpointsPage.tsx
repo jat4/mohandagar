@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { RaceService } from '../services/raceService';
-import { Race, Checkpoint, StaffSession } from '../types/race';
+import { Race, Checkpoint, StaffSession, normalizeCheckpointType } from '../types/race';
 import { formatDistance } from '../utils/raceCalculations';
 import { QrCodeModal } from '../components/race/QrCodeModal';
 import { 
@@ -161,13 +161,19 @@ export const HostRaceCheckpointsPage: React.FC = () => {
                     <span className="text-xs font-mono text-cyan-300 font-bold">
                       {formatDistance(cp.distanceMeters, race.displayUnit)}
                     </span>
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
-                      cp.type === 'FINISH' || cp.type === 'SPLIT_AND_FINISH'
-                        ? 'bg-rose-950 text-rose-400 border border-rose-500/30' 
-                        : 'bg-cyan-950 text-cyan-400 border border-cyan-500/30'
-                    }`}>
-                      {cp.type === 'FINISH' || cp.type === 'SPLIT_AND_FINISH' ? 'Finish Line' : 'Split Gate'}
-                    </span>
+                    {normalizeCheckpointType(cp.type) === 'finish' ? (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-500/30 font-bold">
+                        🏁 Finish Line (Finish Only) 🔒
+                      </span>
+                    ) : normalizeCheckpointType(cp.type) === 'splitFinish' ? (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/30">
+                        ⚡ Split Gate (Split & Finish)
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/30">
+                        ⚡ Split (Split Only)
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-lg font-bold text-slate-100">
                     {cp.name}

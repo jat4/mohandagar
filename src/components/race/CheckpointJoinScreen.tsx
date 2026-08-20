@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { RaceService } from '../../services/raceService';
-import { Race, Checkpoint, TimingEvent } from '../../types/race';
+import { Race, Checkpoint, TimingEvent, normalizeCheckpointType } from '../../types/race';
 import { formatDistance } from '../../utils/raceCalculations';
 import { CheckpointStaffScreen } from './CheckpointStaffScreen';
 import { CameraQrScanner } from './CameraQrScanner';
@@ -329,28 +329,47 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
           <form onSubmit={handleConfirmJoin} className="space-y-4 mt-5 animate-fadeIn">
             
             {/* Checkpoint Details Card */}
-            <div className={`p-4 rounded-2xl border text-left ${
-              resolvedCheckpoint.type === 'FINISH' || resolvedCheckpoint.type === 'SPLIT_AND_FINISH'
-                ? 'bg-rose-950/30 border-rose-500/40'
-                : 'bg-cyan-950/40 border-cyan-500/40'
-            }`}>
-              <div className="flex items-center justify-between text-xs font-mono mb-1 font-bold">
-                <span className={resolvedCheckpoint.type === 'FINISH' || resolvedCheckpoint.type === 'SPLIT_AND_FINISH' ? 'text-rose-400' : 'text-cyan-400'}>
-                  {resolvedCheckpoint.type === 'FINISH' || resolvedCheckpoint.type === 'SPLIT_AND_FINISH' ? '🏁 FINISH LINE' : '⚡ SPLIT GATE'}
-                </span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div className="text-xl font-bold text-slate-100">
-                {resolvedCheckpoint.name}
-              </div>
-              <div className="text-xs font-mono text-slate-300 mt-0.5">
-                Distance: <strong>{formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace?.displayUnit)}</strong>
-                <span className="ml-2 text-slate-500">• Authority: <strong className="text-slate-200">{resolvedCheckpoint.type === 'FINISH' || resolvedCheckpoint.type === 'SPLIT_AND_FINISH' ? 'Finish Only' : 'Split & Finish'}</strong></span>
-              </div>
-              <div className="mt-2 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
-                Race: <strong className="text-slate-200">{resolvedRace?.name}</strong> • Runner: <strong className="text-slate-200">{resolvedRace?.runnerName}</strong>
-              </div>
-            </div>
+            {(() => {
+              const normType = normalizeCheckpointType(resolvedCheckpoint.type);
+              const isFinishOnly = normType === 'finish';
+              const isSplitFinish = normType === 'splitFinish';
+
+              return (
+                <div className={`p-4 rounded-2xl border text-left ${
+                  isFinishOnly
+                    ? 'bg-rose-950/30 border-rose-500/40'
+                    : isSplitFinish
+                    ? 'bg-emerald-950/30 border-emerald-500/40'
+                    : 'bg-cyan-950/40 border-cyan-500/40'
+                }`}>
+                  <div className="flex items-center justify-between text-xs font-mono mb-1 font-bold">
+                    <span className={isFinishOnly ? 'text-rose-400' : isSplitFinish ? 'text-emerald-400' : 'text-cyan-400'}>
+                      {isFinishOnly
+                        ? '🏁 FINISH LINE (FINISH ONLY) 🔒'
+                        : isSplitFinish
+                        ? '⚡ SPLIT GATE (SPLIT & FINISH)'
+                        : '⚡ SPLIT (SPLIT ONLY)'}
+                    </span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="text-xl font-bold text-slate-100">
+                    {resolvedCheckpoint.name}
+                  </div>
+                  <div className="text-xs font-mono text-slate-300 mt-0.5">
+                    Distance: <strong>{formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace?.displayUnit)}</strong>
+                    <span className="ml-2 text-slate-500">
+                      • Type:{' '}
+                      <strong className="text-slate-200">
+                        {isFinishOnly ? 'Finish Only' : isSplitFinish ? 'Split & Finish' : 'Split Only'}
+                      </strong>
+                    </span>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
+                    Race: <strong className="text-slate-200">{resolvedRace?.name}</strong> • Runner: <strong className="text-slate-200">{resolvedRace?.runnerName}</strong>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div>
               <label className="block text-xs font-mono text-slate-300 mb-1.5">

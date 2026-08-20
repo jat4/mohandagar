@@ -27,7 +27,10 @@ import {
   JoinCodeMapping,
   TimingEventType,
   PublishedResult,
-  PublicationStatus
+  PublicationStatus,
+  normalizeCheckpointType,
+  isSplitAllowed,
+  isFinishAllowed
 } from '../types/race';
 import { generateJoinCode, calculateRaceStatistics } from '../utils/raceCalculations';
 import { TimeSyncService } from './timeSyncService';
@@ -79,20 +82,29 @@ export class RaceService {
     const raceId = `race_${now}_${Math.random().toString(36).substring(2, 7)}`;
     
     // Build checkpoints with unique IDs and unique Join Codes
-    const checkpoints: Checkpoint[] = input.checkpoints
-      .sort((a, b) => a.distanceMeters - b.distanceMeters)
-      .map((cp, idx) => {
-        const joinCode = generateJoinCode();
-        return {
-          id: `cp_${idx + 1}_${now}_${Math.random().toString(36).substring(2, 5)}`,
-          order: idx + 1,
-          name: cp.name.trim() || `Checkpoint ${idx + 1}`,
-          distanceMeters: cp.distanceMeters,
-          type: cp.type,
-          joinCode,
-          assignedStaffName: cp.assignedStaffName?.trim() || ''
-        };
-      });
+    // Enforce: Final checkpoint must always be 'finish' (Finish Line), normal checkpoints are 'splitFinish' or 'splitOnly'
+    const sorted = [...input.checkpoints].sort((a, b) => a.distanceMeters - b.distanceMeters);
+    const checkpoints: Checkpoint[] = sorted.map((cp, idx) => {
+      const isFinal = idx === sorted.length - 1;
+      let enforcedType: CheckpointType;
+      if (isFinal) {
+        enforcedType = 'finish';
+      } else {
+        const norm = normalizeCheckpointType(cp.type);
+        enforcedType = norm === 'splitOnly' ? 'splitOnly' : 'splitFinish';
+      }
+
+      const joinCode = generateJoinCode();
+      return {
+        id: `cp_${idx + 1}_${now}_${Math.random().toString(36).substring(2, 5)}`,
+        order: idx + 1,
+        name: cp.name.trim() || (isFinal ? 'FINISH LINE' : `Checkpoint ${idx + 1}`),
+        distanceMeters: cp.distanceMeters,
+        type: enforcedType,
+        joinCode,
+        assignedStaffName: cp.assignedStaffName?.trim() || ''
+      };
+    });
 
     const raceData: Record<string, any> = {
       id: raceId,
@@ -279,10 +291,13 @@ export class RaceService {
     capturedElapsedMs?: number;
     checkpointType?: CheckpointType;
   }): Promise<TimingEvent> {
-    // 1. Validate checkpoint action permissions
-    const isFinishOnlyGate = params.checkpointType === 'FINISH' || params.checkpointType === 'SPLIT_AND_FINISH';
-    if (isFinishOnlyGate && params.eventType === 'SPLIT') {
-      throw new Error('A Finish Line checkpoint cannot record split events; only finish events are permitted.');
+    // 1. Validate checkpoint action permissions against checkpoint type
+    const normalizedType = normalizeCheckpointType(params.checkpointType);
+    if (params.eventType === 'SPLIT' && !isSplitAllowed(normalizedType)) {
+      throw new Error(`Checkpoint type "${normalizedType}" does not allow recording SPLIT events.`);
+    }
+    if (params.eventType === 'FINISH' && !isFinishAllowed(normalizedType)) {
+      throw new Error(`Checkpoint type "${normalizedType}" does not allow recording FINISH events.`);
     }
 
     // 2. Authoritative timing: Use pre-captured timestamp (from initial FINISH button press),
@@ -438,9 +453,26 @@ export class RaceService {
    */
   static async updateRaceCheckpoints(raceId: string, checkpoints: Checkpoint[]): Promise<void> {
     const now = TimeSyncService.now();
+    const sorted = [...checkpoints].sort((a, b) => a.distanceMeters - b.distanceMeters);
+    const sanitized = sorted.map((cp, idx) => {
+      const isFinal = idx === sorted.length - 1;
+      let enforcedType: CheckpointType;
+      if (isFinal) {
+        enforcedType = 'finish';
+      } else {
+        const norm = normalizeCheckpointType(cp.type);
+        enforcedType = norm === 'splitOnly' ? 'splitOnly' : 'splitFinish';
+      }
+      return sanitizeFirestorePayload({
+        ...cp,
+        order: idx + 1,
+        type: enforcedType
+      });
+    });
+
     try {
       await updateDoc(doc(db, 'races', raceId), {
-        checkpoints: checkpoints.map(cp => sanitizeFirestorePayload(cp)),
+        checkpoints: sanitized,
         updatedAt: now
       });
     } catch (error) {

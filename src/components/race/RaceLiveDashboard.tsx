@@ -3,7 +3,8 @@ import {
   Race, 
   TimingEvent, 
   StaffSession, 
-  Checkpoint 
+  Checkpoint,
+  normalizeCheckpointType
 } from '../../types/race';
 import { RaceService } from '../../services/raceService';
 import { useTimeSync, TimeSyncService } from '../../services/timeSyncService';
@@ -329,13 +330,17 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                   >
                     <td className="py-3.5 px-4 font-bold text-slate-100">
                       <div>{row.checkpoint.name}</div>
-                      {row.checkpoint.type === 'FINISH' || row.checkpoint.type === 'SPLIT_AND_FINISH' ? (
+                      {normalizeCheckpointType(row.checkpoint.type) === 'finish' ? (
                         <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-rose-950/80 text-rose-300 border border-rose-500/30 font-semibold uppercase">
-                          🏁 Finish Line (Finish Only)
+                          🏁 Finish Line (Finish Only) 🔒
+                        </span>
+                      ) : normalizeCheckpointType(row.checkpoint.type) === 'splitFinish' ? (
+                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 font-semibold uppercase">
+                          ⚡ Split Gate (Split & Finish)
                         </span>
                       ) : (
                         <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 font-semibold uppercase">
-                          ⚡ Split Gate (Split & Finish)
+                          ⚡ Split (Split Only)
                         </span>
                       )}
                     </td>
