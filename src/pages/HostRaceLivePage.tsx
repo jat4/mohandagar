@@ -174,11 +174,10 @@ export const HostRaceLivePage: React.FC = () => {
       showToast({
         type: 'success',
         title: 'Assigned as Host',
-        message: `You are now assigned to time ${checkpoint.name}. Opening gate...`
+        message: `${checkpoint.name} is now assigned to Host.`
       });
 
-      // Navigate to checkpoint timing screen
-      navigate(`/checkpoint/${checkpoint.id}?raceId=${race.id}`);
+      // Host remains on the management page (/host/race/:raceId) without redirecting
     } catch (err: any) {
       console.error('Failed to assign host:', err);
       showToast({

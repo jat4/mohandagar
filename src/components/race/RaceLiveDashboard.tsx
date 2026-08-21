@@ -481,10 +481,10 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                               ? 'bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 shadow-sm shadow-cyan-500/20'
                               : 'bg-slate-800 hover:bg-slate-700 text-cyan-300'
                           }`}
-                          title="Open Checkpoint Gate as Host"
+                          title={isHost ? "Currently assigned to Host" : "Assign Myself to this Checkpoint"}
                         >
                           <UserCheck className="w-3.5 h-3.5" />
-                          <span>{isHost ? 'Time as Host' : 'Assign Myself'}</span>
+                          <span>{isHost ? 'Host Assigned' : 'Assign Myself'}</span>
                         </button>
 
                         {/* QR Code / Join Code Modal Opener */}

@@ -218,6 +218,14 @@ export const JoinCheckpointPage: React.FC = () => {
         deviceName: finalDeviceName
       }));
 
+      // Claim checkpoint with Host locking validation
+      await RaceService.claimCheckpoint({
+        raceId: resolvedRace.id,
+        checkpointId: resolvedCheckpoint.id,
+        staffName: finalStaffName,
+        deviceName: finalDeviceName
+      });
+
       // Register staff session heartbeat
       const sessionKey = `checkpoint_staff_session_${resolvedCheckpoint.id}`;
       const savedSessionId = localStorage.getItem(sessionKey) || `session_${resolvedCheckpoint.id}_${Date.now()}`;
