@@ -21,20 +21,28 @@ export function isRaceWaiting(status?: string): boolean {
 export type DistanceUnit = 'METERS' | 'KILOMETERS' | 'MILES';
 
 export type CheckpointType = 
+  | 'start'
   | 'splitFinish' 
   | 'splitOnly' 
   | 'finish' 
   // Backward compatibility types
+  | 'START'
   | 'SPLIT' 
   | 'FINISH' 
   | 'SPLIT_AND_FINISH';
 
-export function normalizeCheckpointType(type?: string): 'splitFinish' | 'splitOnly' | 'finish' {
+export function normalizeCheckpointType(type?: string): 'start' | 'splitFinish' | 'splitOnly' | 'finish' {
   if (!type) return 'splitFinish';
+  if (type === 'start' || type === 'START') return 'start';
   if (type === 'finish' || type === 'FINISH') return 'finish';
   if (type === 'splitOnly' || type === 'SPLIT') return 'splitOnly';
   if (type === 'splitFinish' || type === 'SPLIT_AND_FINISH') return 'splitFinish';
   return 'splitFinish';
+}
+
+export function isStartAllowed(type?: string): boolean {
+  const norm = normalizeCheckpointType(type);
+  return norm === 'start';
 }
 
 export function isSplitAllowed(type?: string): boolean {
@@ -70,6 +78,10 @@ export interface Race {
   id: string;
   name: string;
   runnerName: string;
+  runnerGender?: 'MALE' | 'FEMALE';
+  runnerAge?: number;
+  runnerCity?: string;
+  runnerState?: string;
   totalPlannedDistanceMeters: number;
   displayUnit: DistanceUnit;
   status: RaceStatus;
@@ -191,6 +203,10 @@ export interface PublishedResult {
   raceId: string;
   raceName: string;
   runnerName: string;
+  runnerGender?: 'MALE' | 'FEMALE';
+  runnerAge?: number;
+  runnerCity?: string;
+  runnerState?: string;
   hostUid: string;
   hostName?: string;
   publishedAt: number;

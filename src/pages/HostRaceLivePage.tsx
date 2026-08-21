@@ -152,6 +152,43 @@ export const HostRaceLivePage: React.FC = () => {
     }
   };
 
+  const handleAssignSelfToCheckpoint = async (checkpoint: Checkpoint) => {
+    if (!race) return;
+    try {
+      const hostName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Race Host';
+      const hostUid = currentUser?.uid || race.hostUid || 'host';
+      
+      // Assign host to checkpoint in database
+      await RaceService.assignHostToCheckpoint(race.id, checkpoint.id, hostName, hostUid);
+
+      // Save local storage for seamless timing experience
+      localStorage.setItem('stopwatch_staff_name', `${hostName} (Host)`);
+      localStorage.setItem('stopwatch_device_name', 'Host Control Device');
+      localStorage.setItem(`checkpoint_session_${checkpoint.id}`, JSON.stringify({
+        raceId: race.id,
+        checkpointId: checkpoint.id,
+        staffName: `${hostName} (Host)`,
+        deviceName: 'Host Control Device'
+      }));
+
+      showToast({
+        type: 'success',
+        title: 'Assigned as Host',
+        message: `You are now assigned to time ${checkpoint.name}. Opening gate...`
+      });
+
+      // Navigate to checkpoint timing screen
+      navigate(`/checkpoint/${checkpoint.id}?raceId=${race.id}`);
+    } catch (err: any) {
+      console.error('Failed to assign host:', err);
+      showToast({
+        type: 'error',
+        title: 'Assignment Error',
+        message: err.message || 'Could not assign host to checkpoint.'
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="py-24 flex flex-col items-center justify-center font-mono text-slate-400 gap-3">
@@ -231,7 +268,8 @@ export const HostRaceLivePage: React.FC = () => {
         onFinishRace={handleFinishRace}
         onResetRace={() => setShowResetConfirm(true)}
         onOpenQrCode={(cp) => setSelectedQrCp(cp)}
-        onTimeCheckpointAsHost={(cp) => navigate(`/checkpoint/${cp.id}?raceId=${race.id}`)}
+        onAssignSelfToCheckpoint={handleAssignSelfToCheckpoint}
+        onTimeCheckpointAsHost={(cp) => handleAssignSelfToCheckpoint(cp)}
         onViewSummary={() => navigate(`/host/race/${race.id}/results`)}
       />
 

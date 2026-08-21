@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { RaceService } from '../services/raceService';
 import { PublishedResult } from '../types/race';
 import { ResultQrCodeModal } from '../components/race/ResultQrCodeModal';
+import { formatTimeMs } from '../utils/raceCalculations';
 import { 
   Trophy, 
   Search, 
@@ -62,7 +63,25 @@ export const PublicResultsPage: React.FC = () => {
     );
   });
 
-  const totalDistanceTimed = results.reduce((acc, curr) => acc + (curr.actualDistanceKm || 0), 0);
+  const publishedCount = results.length;
+
+  // Calculate Total Distance in km from published race distance data
+  const totalDistanceKm = results.reduce((acc, curr) => {
+    if (typeof curr.actualDistanceKm === 'number' && !isNaN(curr.actualDistanceKm)) {
+      return acc + curr.actualDistanceKm;
+    }
+    const meters = curr.actualDistanceMeters || curr.totalPlannedDistanceMeters || 0;
+    return acc + (meters / 1000);
+  }, 0);
+
+  // Calculate Total Official Time in ms from published race totalTimeMs data
+  const totalTimeMs = results.reduce((acc, curr) => {
+    const time = typeof curr.totalTimeMs === 'number' && !isNaN(curr.totalTimeMs) ? curr.totalTimeMs : 0;
+    return acc + time;
+  }, 0);
+
+  const formattedTotalDistance = `${totalDistanceKm.toFixed(1)} km`;
+  const formattedTotalTime = publishedCount === 0 ? '00:00:00.000' : formatTimeMs(totalTimeMs, true);
 
   const handleCopyLink = (result: PublishedResult, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -98,16 +117,44 @@ export const PublicResultsPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Quick Stat Highlights */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="px-4 py-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-center font-mono">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider">Published Races</div>
-              <div className="text-2xl font-black text-cyan-300">{results.length}</div>
+          {/* Tab Switcher & Quick Stat Highlights */}
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 shrink-0">
+            <div className="flex items-center gap-1.5 p-1.5 bg-slate-950 rounded-2xl border border-slate-800 font-mono text-xs font-bold self-start sm:self-auto">
+              <div className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20 flex items-center gap-1.5">
+                <Award className="w-4 h-4" />
+                <span>Race Results</span>
+              </div>
+              <Link
+                to="/results/leaderboard"
+                className="px-4 py-2 rounded-xl text-slate-400 hover:text-amber-300 hover:bg-slate-900 transition-all flex items-center gap-1.5"
+              >
+                <Trophy className="w-4 h-4 text-amber-400" />
+                <span>Leaderboard</span>
+              </Link>
             </div>
-            <div className="px-4 py-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-center font-mono">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider">Distance Timed</div>
-              <div className="text-2xl font-black text-emerald-300">
-                {totalDistanceTimed.toFixed(1)} <span className="text-xs text-slate-400 font-normal">km</span>
+
+            {/* 3 Summary Metric Cards: PUBLISHED RACES, TOTAL DISTANCE, TOTAL TIME */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full sm:w-auto">
+              {/* 1. PUBLISHED RACES */}
+              <div className="px-3.5 sm:px-4 py-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 text-center font-mono flex flex-col justify-center">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold whitespace-nowrap">Published Races</div>
+                <div className="text-lg sm:text-xl font-black text-cyan-300 tracking-tight">{publishedCount}</div>
+              </div>
+
+              {/* 2. TOTAL DISTANCE */}
+              <div className="px-3.5 sm:px-4 py-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 text-center font-mono flex flex-col justify-center">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold whitespace-nowrap">Total Distance</div>
+                <div className="text-lg sm:text-xl font-black text-emerald-300 tracking-tight whitespace-nowrap">
+                  {formattedTotalDistance}
+                </div>
+              </div>
+
+              {/* 3. TOTAL TIME */}
+              <div className="px-3.5 sm:px-4 py-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 text-center font-mono flex flex-col justify-center">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold whitespace-nowrap">Total Time</div>
+                <div className="text-sm sm:text-base font-black text-amber-300 tracking-tight font-mono whitespace-nowrap">
+                  {formattedTotalTime}
+                </div>
               </div>
             </div>
           </div>

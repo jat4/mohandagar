@@ -127,8 +127,9 @@ export function calculateRaceStatistics(
   let finalActualTimeMs = 0;
 
   sortedCheckpoints.forEach((cp, index) => {
+    const isStartCp = normalizeCheckpointType(cp.type) === 'start' || cp.isStart || (cp.distanceMeters === 0 && index === 0);
     const event = eventsByCheckpoint.get(cp.id);
-    const hasEvent = !!event && event.elapsedMs > 0;
+    const hasEvent = !!event;
 
     // A checkpoint is considered MISSED if the race has progressed past it
     // (i.e. A subsequent checkpoint was recorded or race finished) but this CP was never recorded.
@@ -137,8 +138,45 @@ export function calculateRaceStatistics(
       return !!nextEvt && nextEvt.elapsedMs > 0;
     });
 
+    if (isStartCp) {
+      // START LINE special checkpoint logic:
+      // Distance is ALWAYS 0m, no segment calculation, recorded if race started
+      const startRecorded = hasEvent || race.status === 'RUNNING' || isFinished || !!race.startTimestamp;
+      const startEvent = event || (startRecorded ? {
+        id: `evt_start_${race.id}`,
+        raceId: race.id,
+        checkpointId: cp.id,
+        checkpointName: cp.name,
+        checkpointDistanceMeters: 0,
+        timestamp: race.startTimestamp || race.createdAt || Date.now(),
+        elapsedMs: 0,
+        recordedByUid: 'starter',
+        staffName: cp.assignedStaffName || 'Race Starter',
+        deviceId: 'start_device',
+        eventType: 'START' as const
+      } : undefined);
+
+      processedCheckpoints.push({
+        checkpoint: cp,
+        status: startRecorded ? 'RECORDED' : (race.status === 'RUNNING' ? 'PENDING' : 'UPCOMING'),
+        event: startEvent,
+        cumulativeDistanceMeters: 0,
+        cumulativeDistanceKm: 0,
+        cumulativeElapsedMs: 0,
+        cumulativeElapsedFormatted: startRecorded ? '00:00.000' : '—',
+        cumulativePaceFormatted: '—',
+        cumulativeSpeedFormatted: '—'
+      });
+
+      lastRecordedDistanceMeters = 0;
+      lastRecordedElapsedMs = 0;
+      lastRecordedName = cp.name;
+      lastRecordedId = cp.id;
+      return;
+    }
+
     let status: 'RECORDED' | 'MISSED' | 'PENDING' | 'UPCOMING';
-    if (hasEvent) {
+    if (hasEvent && event && event.elapsedMs > 0) {
       status = 'RECORDED';
     } else if (subsequentRecorded || isFinished) {
       status = 'MISSED';

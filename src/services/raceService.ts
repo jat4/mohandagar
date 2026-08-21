@@ -63,6 +63,10 @@ export class RaceService {
   static async createRace(input: {
     name: string;
     runnerName: string;
+    runnerGender?: 'MALE' | 'FEMALE';
+    runnerAge?: number;
+    runnerCity?: string;
+    runnerState?: string;
     totalPlannedDistanceMeters: number;
     displayUnit?: 'METERS' | 'KILOMETERS' | 'MILES';
     checkpoints: Array<{
@@ -81,28 +85,85 @@ export class RaceService {
     const now = TimeSyncService.now();
     const raceId = `race_${now}_${Math.random().toString(36).substring(2, 7)}`;
     
-    // Build checkpoints with unique IDs and unique Join Codes
-    // Enforce: Final checkpoint must always be 'finish' (Finish Line), normal checkpoints are 'splitFinish' or 'splitOnly'
-    const sorted = [...input.checkpoints].sort((a, b) => a.distanceMeters - b.distanceMeters);
-    const checkpoints: Checkpoint[] = sorted.map((cp, idx) => {
-      const isFinal = idx === sorted.length - 1;
-      let enforcedType: CheckpointType;
-      if (isFinal) {
-        enforcedType = 'finish';
-      } else {
-        const norm = normalizeCheckpointType(cp.type);
-        enforcedType = norm === 'splitOnly' ? 'splitOnly' : 'splitFinish';
-      }
+    // Separate START LINE, normal checkpoints, and FINISH LINE
+    // Rule:
+    // Order: START LINE (0m, type 'start', isStart: true)
+    //        ↓ Checkpoints 1..N (type 'splitFinish' | 'splitOnly')
+    //        ↓ FINISH LINE (planned distance, type 'finish')
+    const rawCheckpoints = input.checkpoints || [];
+    const hasExplicitStart = rawCheckpoints.some(
+      cp => normalizeCheckpointType(cp.type) === 'start' || cp.distanceMeters === 0 || cp.name.toUpperCase().includes('START')
+    );
 
+    let startCpInput = rawCheckpoints.find(
+      cp => normalizeCheckpointType(cp.type) === 'start' || cp.distanceMeters === 0 || cp.name.toUpperCase().includes('START')
+    );
+
+    if (!startCpInput) {
+      startCpInput = {
+        name: 'START LINE',
+        distanceMeters: 0,
+        type: 'start',
+        assignedStaffName: 'Start Line'
+      };
+    }
+
+    const nonStartCheckpoints = rawCheckpoints.filter(
+      cp => cp !== startCpInput && cp.distanceMeters > 0 && normalizeCheckpointType(cp.type) !== 'start'
+    );
+
+    const sortedMiddle = [...nonStartCheckpoints].sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+    // If there are no checkpoints provided at all besides start, add default Finish Line
+    let finishCpInput = sortedMiddle.length > 0 ? sortedMiddle[sortedMiddle.length - 1] : null;
+    let middleWithoutFinish = sortedMiddle;
+
+    if (finishCpInput && (normalizeCheckpointType(finishCpInput.type) === 'finish' || finishCpInput.distanceMeters >= input.totalPlannedDistanceMeters)) {
+      middleWithoutFinish = sortedMiddle.slice(0, -1);
+    } else {
+      finishCpInput = {
+        name: 'FINISH LINE',
+        distanceMeters: input.totalPlannedDistanceMeters,
+        type: 'finish',
+        assignedStaffName: 'Finish Line'
+      };
+    }
+
+    const allOrderedInputs = [
+      {
+        name: 'START LINE',
+        distanceMeters: 0,
+        type: 'start' as CheckpointType,
+        isStart: true,
+        assignedStaffName: startCpInput.assignedStaffName || 'Start Line'
+      },
+      ...middleWithoutFinish.map((cp, idx) => ({
+        name: cp.name.trim() || `CP ${idx + 1}`,
+        distanceMeters: cp.distanceMeters,
+        type: (normalizeCheckpointType(cp.type) === 'splitOnly' ? 'splitOnly' : 'splitFinish') as CheckpointType,
+        isStart: false,
+        assignedStaffName: cp.assignedStaffName?.trim() || ''
+      })),
+      {
+        name: finishCpInput.name.trim() || 'FINISH LINE',
+        distanceMeters: input.totalPlannedDistanceMeters,
+        type: 'finish' as CheckpointType,
+        isStart: false,
+        assignedStaffName: finishCpInput.assignedStaffName?.trim() || 'Finish Line'
+      }
+    ];
+
+    const checkpoints: Checkpoint[] = allOrderedInputs.map((cp, idx) => {
       const joinCode = generateJoinCode();
       return {
         id: `cp_${idx + 1}_${now}_${Math.random().toString(36).substring(2, 5)}`,
         order: idx + 1,
-        name: cp.name.trim() || (isFinal ? 'FINISH LINE' : `Checkpoint ${idx + 1}`),
+        name: cp.name,
         distanceMeters: cp.distanceMeters,
-        type: enforcedType,
+        type: cp.type,
+        isStart: cp.isStart,
         joinCode,
-        assignedStaffName: cp.assignedStaffName?.trim() || ''
+        assignedStaffName: cp.assignedStaffName
       };
     });
 
@@ -110,6 +171,10 @@ export class RaceService {
       id: raceId,
       name: input.name.trim(),
       runnerName: input.runnerName.trim(),
+      runnerGender: input.runnerGender || 'MALE',
+      runnerAge: input.runnerAge !== undefined && !isNaN(Number(input.runnerAge)) ? Number(input.runnerAge) : undefined,
+      runnerCity: input.runnerCity?.trim() || '',
+      runnerState: input.runnerState?.trim() || '',
       totalPlannedDistanceMeters: input.totalPlannedDistanceMeters,
       displayUnit: input.displayUnit || 'KILOMETERS',
       status: 'READY',
@@ -246,8 +311,16 @@ export class RaceService {
   /**
    * Authoritative Race Start
    */
-  static async startRace(raceId: string): Promise<number> {
-    const startTimestamp = TimeSyncService.now();
+  static async startRace(
+    raceId: string, 
+    options?: {
+      startCheckpointId?: string;
+      staffName?: string;
+      deviceId?: string;
+      startTimestamp?: number;
+    }
+  ): Promise<number> {
+    const startTimestamp = options?.startTimestamp ?? TimeSyncService.now();
     try {
       // 1. Update race status and start timestamp
       await updateDoc(doc(db, 'races', raceId), {
@@ -261,14 +334,14 @@ export class RaceService {
       const startEvent: TimingEvent = {
         id: eventId,
         raceId,
-        checkpointId: 'START',
-        checkpointName: 'START',
+        checkpointId: options?.startCheckpointId || 'START',
+        checkpointName: 'START LINE',
         checkpointDistanceMeters: 0,
         timestamp: startTimestamp,
         elapsedMs: 0,
-        recordedByUid: auth.currentUser?.uid || 'host',
-        staffName: 'Race Starter',
-        deviceId: 'starter_device',
+        recordedByUid: auth.currentUser?.uid || 'starter',
+        staffName: options?.staffName || (auth.currentUser?.displayName || 'Race Starter'),
+        deviceId: options?.deviceId || 'starter_device',
         eventType: 'START',
         clientRecordedAt: startTimestamp
       };
@@ -277,6 +350,185 @@ export class RaceService {
       return startTimestamp;
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `races/${raceId}`);
+    }
+  }
+
+  /**
+   * Assign Host to any checkpoint (Start Line, normal CP, or Finish Line)
+   */
+  static async assignHostToCheckpoint(
+    raceId: string,
+    checkpointId: string,
+    hostName?: string,
+    hostUid?: string
+  ): Promise<void> {
+    const user = auth.currentUser;
+    const uid = hostUid || user?.uid || 'host';
+    const name = hostName || user?.displayName || user?.email?.split('@')[0] || 'Host';
+    const now = TimeSyncService.now();
+
+    const race = await this.getRace(raceId);
+    if (!race) throw new Error('Race not found.');
+
+    // Update checkpoints: only the selected checkpoint has isHostAssigned = true
+    const updatedCheckpoints = (race.checkpoints || []).map((cp) => {
+      if (cp.id === checkpointId) {
+        return {
+          ...cp,
+          isHostAssigned: true,
+          assignedStaffName: `${name} (Host)`,
+          assignedStaffUid: uid
+        };
+      }
+      // Clear previous host assignment from other checkpoints if any
+      if (cp.isHostAssigned || cp.assignedStaffUid === uid) {
+        return {
+          ...cp,
+          isHostAssigned: false,
+          assignedStaffName: '',
+          assignedStaffUid: ''
+        };
+      }
+      return cp;
+    });
+
+    const targetCp = updatedCheckpoints.find((cp) => cp.id === checkpointId);
+
+    try {
+      await updateDoc(doc(db, 'races', raceId), {
+        checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
+        hostAssignedCheckpointId: checkpointId,
+        updatedAt: now
+      });
+
+      // Record a staffSession for the Host so real-time devices see it immediately
+      if (targetCp) {
+        const sessionId = `session_host_${raceId}_${uid}`;
+        const session: StaffSession = {
+          id: sessionId,
+          raceId,
+          checkpointId: targetCp.id,
+          checkpointName: targetCp.name,
+          checkpointDistanceMeters: targetCp.distanceMeters,
+          staffName: `${name} (Host)`,
+          deviceName: 'Host Device',
+          joinedAt: now,
+          lastSeenAt: now,
+          status: 'ONLINE',
+          isHost: true
+        };
+        await setDoc(doc(db, 'races', raceId, 'staffSessions', sessionId), sanitizeFirestorePayload(session), { merge: true });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `races/${raceId}`);
+    }
+  }
+
+  /**
+   * Unassign Host from current checkpoint
+   */
+  static async unassignHostFromCheckpoint(raceId: string, hostUid?: string): Promise<void> {
+    const user = auth.currentUser;
+    const uid = hostUid || user?.uid || 'host';
+    const now = TimeSyncService.now();
+
+    const race = await this.getRace(raceId);
+    if (!race) return;
+
+    const updatedCheckpoints = (race.checkpoints || []).map((cp) => {
+      if (cp.isHostAssigned || cp.assignedStaffUid === uid) {
+        return {
+          ...cp,
+          isHostAssigned: false,
+          assignedStaffName: '',
+          assignedStaffUid: ''
+        };
+      }
+      return cp;
+    });
+
+    try {
+      await updateDoc(doc(db, 'races', raceId), {
+        checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
+        hostAssignedCheckpointId: null,
+        updatedAt: now
+      });
+
+      const sessionId = `session_host_${raceId}_${uid}`;
+      try {
+        await deleteDoc(doc(db, 'races', raceId, 'staffSessions', sessionId));
+      } catch (e) {
+        // ignore deletion error if session does not exist
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `races/${raceId}`);
+    }
+  }
+
+  /**
+   * Claim Checkpoint by a staff volunteer (ensuring not claimed by Host)
+   */
+  static async claimCheckpoint(params: {
+    raceId: string;
+    checkpointId: string;
+    staffName: string;
+    deviceName?: string;
+    staffUid?: string;
+  }): Promise<Checkpoint> {
+    const now = TimeSyncService.now();
+    const race = await this.getRace(params.raceId);
+    if (!race) throw new Error('Race not found.');
+
+    const targetCp = race.checkpoints.find((c) => c.id === params.checkpointId);
+    if (!targetCp) throw new Error('Checkpoint not found in this race.');
+
+    // Check if locked by Host
+    if (targetCp.isHostAssigned && params.staffUid !== race.hostUid) {
+      throw new Error(`This checkpoint has been assigned to Host (${targetCp.assignedStaffName || 'Host'}).`);
+    }
+
+    // Update checkpoint with assigned staff info
+    const updatedCheckpoints = race.checkpoints.map((cp) => {
+      if (cp.id === params.checkpointId) {
+        return {
+          ...cp,
+          assignedStaffName: params.staffName.trim(),
+          assignedStaffUid: params.staffUid || '',
+          assignedDeviceName: params.deviceName || 'Staff Phone'
+        };
+      }
+      return cp;
+    });
+
+    try {
+      await updateDoc(doc(db, 'races', params.raceId), {
+        checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
+        updatedAt: now
+      });
+
+      // Create / update staffSession
+      const sessionId = `session_${params.staffUid || Math.random().toString(36).substring(2, 8)}`;
+      const session: StaffSession = {
+        id: sessionId,
+        raceId: params.raceId,
+        checkpointId: targetCp.id,
+        checkpointName: targetCp.name,
+        checkpointDistanceMeters: targetCp.distanceMeters,
+        staffName: params.staffName.trim(),
+        deviceName: params.deviceName || 'Staff Phone',
+        joinedAt: now,
+        lastSeenAt: now,
+        status: 'ONLINE',
+        isHost: params.staffUid === race.hostUid
+      };
+      await setDoc(doc(db, 'races', params.raceId, 'staffSessions', sessionId), sanitizeFirestorePayload(session), { merge: true });
+
+      return {
+        ...targetCp,
+        assignedStaffName: params.staffName.trim()
+      };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `races/${params.raceId}`);
     }
   }
 
@@ -491,9 +743,12 @@ export class RaceService {
     const now = TimeSyncService.now();
     const sorted = [...checkpoints].sort((a, b) => a.distanceMeters - b.distanceMeters);
     const sanitized = sorted.map((cp, idx) => {
+      const isStart = idx === 0 && (cp.distanceMeters === 0 || normalizeCheckpointType(cp.type) === 'start' || cp.isStart);
       const isFinal = idx === sorted.length - 1;
       let enforcedType: CheckpointType;
-      if (isFinal) {
+      if (isStart) {
+        enforcedType = 'start';
+      } else if (isFinal) {
         enforcedType = 'finish';
       } else {
         const norm = normalizeCheckpointType(cp.type);
@@ -502,6 +757,7 @@ export class RaceService {
       return sanitizeFirestorePayload({
         ...cp,
         order: idx + 1,
+        isStart: !!isStart,
         type: enforcedType
       });
     });
@@ -682,6 +938,10 @@ export class RaceService {
       raceId: race.id,
       raceName: race.name,
       runnerName: race.runnerName,
+      runnerGender: race.runnerGender || 'MALE',
+      runnerAge: race.runnerAge !== undefined && !isNaN(Number(race.runnerAge)) ? Number(race.runnerAge) : undefined,
+      runnerCity: race.runnerCity?.trim() || '',
+      runnerState: race.runnerState?.trim() || '',
       hostUid: race.hostUid,
       hostName: race.hostName || user.displayName || 'Race Host',
       publishedAt: now,
@@ -714,6 +974,44 @@ export class RaceService {
       return sanitized;
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `publishedResults/${race.id}`);
+    }
+  }
+
+  /**
+   * Update race runner metadata (e.g. gender, age, city, state)
+   */
+  static async updateRaceRunnerProfile(
+    raceId: string, 
+    data: {
+      runnerName?: string;
+      runnerGender?: 'MALE' | 'FEMALE';
+      runnerAge?: number;
+      runnerCity?: string;
+      runnerState?: string;
+    }
+  ): Promise<void> {
+    const user = auth.currentUser;
+    if (!user) throw new Error('You must be signed in to edit race.');
+
+    const now = TimeSyncService.now();
+    const updatePayload: Record<string, any> = {
+      updatedAt: now,
+      ...data
+    };
+
+    try {
+      await updateDoc(doc(db, 'races', raceId), sanitizeFirestorePayload(updatePayload));
+
+      // Also update published result if it exists so leaderboard stays in sync immediately
+      const pubSnap = await getDoc(doc(db, 'publishedResults', raceId)).catch(() => null);
+      if (pubSnap && pubSnap.exists()) {
+        await updateDoc(doc(db, 'publishedResults', raceId), sanitizeFirestorePayload({
+          updatedAt: now,
+          ...data
+        }));
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `races/${raceId}`);
     }
   }
 

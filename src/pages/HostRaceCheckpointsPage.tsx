@@ -146,32 +146,48 @@ export const HostRaceCheckpointsPage: React.FC = () => {
         {race.checkpoints.map((cp, idx) => {
           const session = staffSessions.find(s => s.checkpointId === cp.id);
           const isOnline = session && (Date.now() - session.lastSeenAt < 60000);
+          const normType = normalizeCheckpointType(cp.type);
+          const isStartOnly = normType === 'start' || cp.isStart;
+          const isFinishOnly = !isStartOnly && normType === 'finish';
+          const isSplitFinish = !isStartOnly && normType === 'splitFinish';
+          const isHost = cp.isHostAssigned;
 
           return (
             <div
               key={cp.id}
-              className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 shadow-xl transition-all space-y-4"
+              className={`p-5 rounded-2xl bg-slate-900 border shadow-xl transition-all space-y-4 ${
+                isHost ? 'border-cyan-500/50 bg-slate-900/90' : 'border-slate-800 hover:border-cyan-500/40'
+              }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono font-bold text-slate-300">
-                      Gate #{idx + 1}
+                      {isStartOnly ? 'Start Gate' : isFinishOnly ? 'Finish Gate' : `Gate #${idx + 1}`}
                     </span>
                     <span className="text-xs font-mono text-cyan-300 font-bold">
-                      {formatDistance(cp.distanceMeters, race.displayUnit)}
+                      {isStartOnly ? '0 m (Fixed)' : formatDistance(cp.distanceMeters, race.displayUnit)}
                     </span>
-                    {normalizeCheckpointType(cp.type) === 'finish' ? (
+                    {isStartOnly ? (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-bold">
+                        🚦 Start Line (Start Only) 🔒
+                      </span>
+                    ) : isFinishOnly ? (
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-500/30 font-bold">
                         🏁 Finish Line (Finish Only) 🔒
                       </span>
-                    ) : normalizeCheckpointType(cp.type) === 'splitFinish' ? (
+                    ) : isSplitFinish ? (
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/30">
                         ⚡ Split Gate (Split & Finish)
                       </span>
                     ) : (
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/30">
                         ⚡ Split (Split Only)
+                      </span>
+                    )}
+                    {isHost && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-500/30 font-bold">
+                        👑 Host Assigned
                       </span>
                     )}
                   </div>
@@ -223,26 +239,26 @@ export const HostRaceCheckpointsPage: React.FC = () => {
                 <div className="flex items-center gap-1.5">
                   <Smartphone className="w-3.5 h-3.5 text-slate-500" />
                   <span>
-                    Staff: <strong className="text-slate-200">{session?.staffName || cp.assignedStaffName || 'Unassigned'}</strong>
+                    Staff: <strong className="text-slate-200">{isHost ? `👑 Host (${cp.assignedStaffName || 'Host'})` : session?.staffName || cp.assignedStaffName || 'Unassigned'}</strong>
                   </span>
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
-                  <span className={isOnline ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                    {isOnline ? 'Device Live' : 'Standby'}
+                  <span className={`w-2 h-2 rounded-full ${isHost ? 'bg-cyan-400 animate-pulse' : isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
+                  <span className={isHost ? 'text-cyan-300 font-bold' : isOnline ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                    {isHost ? 'Host Gate' : isOnline ? 'Device Live' : 'Standby'}
                   </span>
                 </div>
               </div>
 
               {/* Time Checkpoint as Host action */}
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+              <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
                 <Link
                   to={`/checkpoint/${cp.id}?raceId=${race.id}`}
                   className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-cyan-300 font-mono text-xs font-bold flex items-center justify-center gap-2 transition-colors text-center"
                 >
                   <Timer className="w-3.5 h-3.5" />
-                  <span>Open Gate Screen as Staff / Host</span>
+                  <span>{isHost ? 'Open Gate Screen (Host)' : 'Open Gate Screen as Staff / Host'}</span>
                 </Link>
               </div>
             </div>

@@ -26,6 +26,10 @@ export const HostCreateRacePage: React.FC = () => {
 
   const [raceName, setRaceName] = useState('5K Time Trial');
   const [runnerName, setRunnerName] = useState('Runner Name');
+  const [runnerGender, setRunnerGender] = useState<'MALE' | 'FEMALE'>('MALE');
+  const [runnerAge, setRunnerAge] = useState<string>('28');
+  const [runnerCity, setRunnerCity] = useState<string>('');
+  const [runnerState, setRunnerState] = useState<string>('');
   const [totalPlannedDist, setTotalPlannedDist] = useState<number>(5000);
   const [displayUnit, setDisplayUnit] = useState<DistanceUnit>('KILOMETERS');
 
@@ -35,12 +39,14 @@ export const HostCreateRacePage: React.FC = () => {
     distanceMeters: number;
     type: CheckpointType;
     assignedStaffName: string;
+    isStart?: boolean;
   }>>([
+    { id: 'start', name: 'START LINE', distanceMeters: 0, type: 'start', assignedStaffName: 'Start Line', isStart: true },
     { id: '1', name: 'CP 1 (Turn 1)', distanceMeters: 1000, type: 'splitFinish', assignedStaffName: 'Phone A' },
     { id: '2', name: 'CP 2 (Midpoint)', distanceMeters: 2000, type: 'splitOnly', assignedStaffName: 'Phone B' },
     { id: '3', name: 'CP 3 (Turn 3)', distanceMeters: 3000, type: 'splitFinish', assignedStaffName: 'Phone C' },
     { id: '4', name: 'CP 4 (Final Loop)', distanceMeters: 4000, type: 'splitOnly', assignedStaffName: 'Phone D' },
-    { id: '5', name: 'FINISH LINE', distanceMeters: 5000, type: 'finish', assignedStaffName: 'Finish Line' }
+    { id: 'finish', name: 'FINISH LINE', distanceMeters: 5000, type: 'finish', assignedStaffName: 'Finish Line' }
   ]);
 
   const [creatingRace, setCreatingRace] = useState(false);
@@ -61,34 +67,31 @@ export const HostCreateRacePage: React.FC = () => {
 
   const handleAddCheckpoint = () => {
     const count = wizardCheckpoints.length;
-    const normalCheckpoints = wizardCheckpoints.slice(0, count - 1);
+    const startLine = wizardCheckpoints[0];
     const finishLine = wizardCheckpoints[count - 1];
+    const middleCheckpoints = wizardCheckpoints.slice(1, count - 1);
 
-    const prevCp = normalCheckpoints[normalCheckpoints.length - 1];
+    const prevCp = middleCheckpoints[middleCheckpoints.length - 1];
     const newDistance = prevCp ? prevCp.distanceMeters + 1000 : 1000;
     const newId = `${Date.now()}`;
     const newCp = {
       id: newId,
-      name: `CP ${normalCheckpoints.length + 1}`,
+      name: `CP ${middleCheckpoints.length + 1}`,
       distanceMeters: newDistance,
       type: 'splitFinish' as CheckpointType,
-      assignedStaffName: `Phone ${String.fromCharCode(65 + (normalCheckpoints.length % 26))}`
+      assignedStaffName: `Phone ${String.fromCharCode(65 + (middleCheckpoints.length % 26))}`
     };
 
-    if (finishLine) {
-      setWizardCheckpoints([...normalCheckpoints, newCp, finishLine]);
-    } else {
-      setWizardCheckpoints([...normalCheckpoints, newCp]);
-    }
+    setWizardCheckpoints([startLine, ...middleCheckpoints, newCp, finishLine]);
   };
 
   const handleRemoveCheckpoint = (id: string) => {
     const cpToRemove = wizardCheckpoints.find(cp => cp.id === id);
-    if (cpToRemove && (cpToRemove.type === 'finish' || cpToRemove.type === 'FINISH')) {
+    if (cpToRemove && (cpToRemove.type === 'start' || cpToRemove.type === 'finish' || cpToRemove.type === 'FINISH' || cpToRemove.isStart)) {
       return;
     }
-    if (wizardCheckpoints.length <= 1) {
-      setErrorMessage('A race must have at least one checkpoint or finish gate.');
+    if (wizardCheckpoints.length <= 2) {
+      setErrorMessage('A race must have at least Start and Finish gates.');
       return;
     }
     setWizardCheckpoints(wizardCheckpoints.filter((cp) => cp.id !== id));
@@ -112,6 +115,10 @@ export const HostCreateRacePage: React.FC = () => {
       const newRace = await RaceService.createRace({
         name: raceName.trim(),
         runnerName: runnerName.trim(),
+        runnerGender,
+        runnerAge: runnerAge.trim() ? Number(runnerAge) : undefined,
+        runnerCity: runnerCity.trim(),
+        runnerState: runnerState.trim(),
         totalPlannedDistanceMeters: totalPlannedDist,
         displayUnit,
         checkpoints: wizardCheckpoints.map((cp) => ({
@@ -201,6 +208,75 @@ export const HostCreateRacePage: React.FC = () => {
             </div>
           </div>
 
+          {/* Runner Demographics for Official Leaderboard */}
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-amber-400">Runner Demographics & Ranking Details</span>
+              <span className="text-[10px] font-mono text-slate-500">For Official Leaderboard</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5 font-mono text-xs">
+              {/* Gender */}
+              <div>
+                <label className="block text-[11px] text-slate-400 font-bold mb-1.5">
+                  Gender *
+                </label>
+                <select
+                  value={runnerGender}
+                  onChange={(e) => setRunnerGender(e.target.value as 'MALE' | 'FEMALE')}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-amber-500 transition-colors"
+                >
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                </select>
+              </div>
+
+              {/* Age */}
+              <div>
+                <label className="block text-[11px] text-slate-400 font-bold mb-1.5">
+                  Age at Race
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  placeholder="e.g. 28"
+                  value={runnerAge}
+                  onChange={(e) => setRunnerAge(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs placeholder-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+
+              {/* City */}
+              <div>
+                <label className="block text-[11px] text-slate-400 font-bold mb-1.5">
+                  City
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Delhi"
+                  value={runnerCity}
+                  onChange={(e) => setRunnerCity(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs placeholder-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+
+              {/* State */}
+              <div>
+                <label className="block text-[11px] text-slate-400 font-bold mb-1.5">
+                  State / Region
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Delhi"
+                  value={runnerState}
+                  onChange={(e) => setRunnerState(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs placeholder-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Total Planned Distance & Unit */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div>
@@ -261,12 +337,15 @@ export const HostCreateRacePage: React.FC = () => {
 
             <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
               {wizardCheckpoints.map((cp, idx) => {
-                const isFinalFinishLine = idx === wizardCheckpoints.length - 1;
+                const isStartLine = idx === 0 || cp.type === 'start' || cp.isStart;
+                const isFinalFinishLine = !isStartLine && (idx === wizardCheckpoints.length - 1 || cp.type === 'finish' || cp.type === 'FINISH');
                 return (
                   <div
                     key={cp.id}
                     className={`p-3.5 rounded-2xl border grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center text-xs font-mono transition-colors ${
-                      isFinalFinishLine 
+                      isStartLine
+                        ? 'bg-emerald-950/20 border-emerald-900/40'
+                        : isFinalFinishLine 
                         ? 'bg-rose-950/20 border-rose-900/40' 
                         : 'bg-slate-950 border-slate-800/90'
                     }`}
@@ -288,24 +367,36 @@ export const HostCreateRacePage: React.FC = () => {
 
                     <div className="sm:col-span-3">
                       <label className="text-[10px] text-slate-500 sm:hidden block mb-1">Distance (Meters)</label>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          value={cp.distanceMeters}
-                          onChange={(e) => {
-                            const updated = [...wizardCheckpoints];
-                            updated[idx].distanceMeters = Number(e.target.value);
-                            setWizardCheckpoints(updated);
-                          }}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-cyan-500"
-                        />
-                        <span className="text-[10px] text-slate-500">m</span>
-                      </div>
+                      {isStartLine ? (
+                        <div className="w-full px-3 py-2 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-bold flex items-center justify-between select-none">
+                          <span>0 m</span>
+                          <span className="text-[11px] text-emerald-400/80 font-normal">Fixed</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={cp.distanceMeters}
+                            onChange={(e) => {
+                              const updated = [...wizardCheckpoints];
+                              updated[idx].distanceMeters = Number(e.target.value);
+                              setWizardCheckpoints(updated);
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-cyan-500"
+                          />
+                          <span className="text-[10px] text-slate-500">m</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="sm:col-span-3">
                       <label className="text-[10px] text-slate-500 sm:hidden block mb-1">Gate Role</label>
-                      {isFinalFinishLine ? (
+                      {isStartLine ? (
+                        <div className="w-full px-3 py-2 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-bold flex items-center justify-between select-none">
+                          <span>Start Line (Start Only)</span>
+                          <span className="text-[13px]">🔒</span>
+                        </div>
+                      ) : isFinalFinishLine ? (
                         <div className="w-full px-3 py-2 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs font-mono font-bold flex items-center justify-between select-none">
                           <span>Finish Line (Finish Only)</span>
                           <span className="text-[13px]">🔒</span>
@@ -327,7 +418,12 @@ export const HostCreateRacePage: React.FC = () => {
                     </div>
 
                     <div className="sm:col-span-2 flex justify-end">
-                      {isFinalFinishLine ? (
+                      {isStartLine ? (
+                        <div className="p-2 text-emerald-400/70 font-mono text-[11px] flex items-center gap-1 select-none">
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>Start</span>
+                        </div>
+                      ) : isFinalFinishLine ? (
                         <div className="p-2 text-rose-400/60 font-mono text-[11px] flex items-center gap-1 select-none">
                           <Lock className="w-3.5 h-3.5" />
                           <span>Finish</span>

@@ -21,7 +21,8 @@ import {
   Sparkles,
   Menu,
   X,
-  Award
+  Award,
+  Trophy
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -70,7 +71,9 @@ export const Navbar: React.FC = () => {
     } else if (parts[0] === 'terms-of-service') {
       crumbs.push({ label: 'Terms of Service' });
     } else if (parts[0] === 'results') {
-      if (parts[1]) {
+      if (parts[1] === 'leaderboard') {
+        crumbs.push({ label: 'Leaderboard' });
+      } else if (parts[1]) {
         crumbs.push({ label: 'Race Results', to: '/results' });
         crumbs.push({ label: `Record: ${parts[1]}` });
       } else {
@@ -185,6 +188,20 @@ export const Navbar: React.FC = () => {
           >
             <Award className="w-3.5 h-3.5" />
             <span>Race Results</span>
+          </NavLink>
+
+          <NavLink
+            to="/results/leaderboard"
+            className={
+              `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                activeNav === 'leaderboard'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black'
+                  : 'text-slate-400 hover:text-amber-300'
+              }`
+            }
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>Leaderboard</span>
           </NavLink>
 
           {currentUser && (
@@ -302,6 +319,17 @@ export const Navbar: React.FC = () => {
             }`}
           >
             Race Results
+          </Link>
+          <Link
+            to="/results/leaderboard"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`block py-2.5 px-3 rounded-lg transition-all ${
+              activeNav === 'leaderboard'
+                ? 'bg-slate-800 text-amber-400 font-bold border border-amber-500/40'
+                : 'bg-slate-900 text-amber-300 font-bold hover:text-amber-200'
+            }`}
+          >
+            🏆 Leaderboard
           </Link>
           {currentUser && (
             <>

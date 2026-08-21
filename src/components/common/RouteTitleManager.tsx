@@ -19,6 +19,9 @@ export function getRouteTitle(pathname: string): string {
   if (cleanPath === '/results') {
     return 'Result';
   }
+  if (cleanPath === '/results/leaderboard') {
+    return 'Leaderboard – Runner Stopwatch';
+  }
   if (cleanPath === '/host' || cleanPath === '/host/dashboard') {
     return 'Runner Stopwatch – Host';
   }

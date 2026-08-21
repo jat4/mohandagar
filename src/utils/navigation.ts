@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type NavItemKey = 'home' | 'join' | 'results' | 'dashboard' | 'races';
+export type NavItemKey = 'home' | 'join' | 'results' | 'leaderboard' | 'dashboard' | 'races';
 
 /**
  * Centralized route-matching function for determining active navigation state.
@@ -12,6 +12,7 @@ export type NavItemKey = 'home' | 'join' | 'results' | 'dashboard' | 'races';
  * Rules:
  * - /home (or /) -> 'home'
  * - /join, /join/*, /checkpoint/* -> 'join'
+ * - /results/leaderboard -> 'leaderboard'
  * - /results, /results/*, /activity/* -> 'results'
  * - /host/races, /host/races/* -> 'races' (ONLY 'races', NEVER 'dashboard')
  * - /host/dashboard, /host/race/new, /host/race/:raceId -> 'dashboard' (NEVER 'races')
@@ -29,17 +30,22 @@ export function getActiveNavItem(pathname: string): NavItemKey | null {
     return 'join';
   }
 
-  // 3. Race Results
+  // 3. Leaderboard
+  if (clean === '/results/leaderboard' || clean.startsWith('/results/leaderboard/')) {
+    return 'leaderboard';
+  }
+
+  // 4. Race Results
   if (clean === '/results' || clean.startsWith('/results/') || clean.startsWith('/activity/')) {
     return 'results';
   }
 
-  // 4. Race History (explicit check to ensure /host/races NEVER triggers dashboard)
+  // 5. Race History (explicit check to ensure /host/races NEVER triggers dashboard)
   if (clean === '/host/races' || clean.startsWith('/host/races/')) {
     return 'races';
   }
 
-  // 5. Host Dashboard and child race-management workflows (/host/dashboard, /host/race/new, /host/race/:raceId)
+  // 6. Host Dashboard and child race-management workflows (/host/dashboard, /host/race/new, /host/race/:raceId)
   if (
     clean === '/host/dashboard' ||
     clean.startsWith('/host/dashboard/') ||

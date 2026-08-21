@@ -175,11 +175,23 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
     handleLookup(cleanCode);
   };
 
-  const handleConfirmJoin = (e: React.FormEvent) => {
+  const handleConfirmJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!staffName.trim()) {
       setErrorMessage('Please provide your name to identify your device on the race board.');
       return;
+    }
+    if (resolvedRace && resolvedCheckpoint) {
+      try {
+        await RaceService.claimCheckpoint({
+          raceId: resolvedRace.id,
+          checkpointId: resolvedCheckpoint.id,
+          staffName: staffName.trim(),
+          deviceName: deviceName.trim() || 'Staff Device'
+        });
+      } catch (err) {
+        console.warn('Could not claim checkpoint on join:', err);
+      }
     }
     setJoined(true);
     if (onJoinedStaff && resolvedRace && resolvedCheckpoint) {
@@ -334,20 +346,25 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
             {/* Checkpoint Details Card */}
             {(() => {
               const normType = normalizeCheckpointType(resolvedCheckpoint.type);
-              const isFinishOnly = normType === 'finish';
-              const isSplitFinish = normType === 'splitFinish';
+              const isStartOnly = normType === 'start' || resolvedCheckpoint.isStart;
+              const isFinishOnly = !isStartOnly && normType === 'finish';
+              const isSplitFinish = !isStartOnly && normType === 'splitFinish';
 
               return (
                 <div className={`p-4 rounded-2xl border text-left ${
-                  isFinishOnly
+                  isStartOnly
+                    ? 'bg-emerald-950/30 border-emerald-500/40'
+                    : isFinishOnly
                     ? 'bg-rose-950/30 border-rose-500/40'
                     : isSplitFinish
                     ? 'bg-emerald-950/30 border-emerald-500/40'
                     : 'bg-cyan-950/40 border-cyan-500/40'
                 }`}>
                   <div className="flex items-center justify-between text-xs font-mono mb-1 font-bold">
-                    <span className={isFinishOnly ? 'text-rose-400' : isSplitFinish ? 'text-emerald-400' : 'text-cyan-400'}>
-                      {isFinishOnly
+                    <span className={isStartOnly ? 'text-emerald-400' : isFinishOnly ? 'text-rose-400' : isSplitFinish ? 'text-emerald-400' : 'text-cyan-400'}>
+                      {isStartOnly
+                        ? '🚦 START LINE (START ONLY) 🔒'
+                        : isFinishOnly
                         ? '🏁 FINISH LINE (FINISH ONLY) 🔒'
                         : isSplitFinish
                         ? '⚡ SPLIT GATE (SPLIT & FINISH)'
@@ -359,11 +376,11 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
                     {resolvedCheckpoint.name}
                   </div>
                   <div className="text-xs font-mono text-slate-300 mt-0.5">
-                    Distance: <strong>{formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace?.displayUnit)}</strong>
+                    Distance: <strong>{isStartOnly ? '0 m (Fixed)' : formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace?.displayUnit)}</strong>
                     <span className="ml-2 text-slate-500">
                       • Type:{' '}
                       <strong className="text-slate-200">
-                        {isFinishOnly ? 'Finish Only' : isSplitFinish ? 'Split & Finish' : 'Split Only'}
+                        {isStartOnly ? 'Start Only' : isFinishOnly ? 'Finish Only' : isSplitFinish ? 'Split & Finish' : 'Split Only'}
                       </strong>
                     </span>
                   </div>

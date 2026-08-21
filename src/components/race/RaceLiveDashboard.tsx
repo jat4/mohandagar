@@ -339,21 +339,37 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
               {stats.processedCheckpoints.map((row) => {
                 const session = sessionByCheckpoint.get(row.checkpoint.id);
                 const isOnline = session && (now - session.lastSeenAt < 35000);
+                const normType = normalizeCheckpointType(row.checkpoint.type);
+                const isStartOnly = normType === 'start' || row.checkpoint.isStart;
+                const isFinishOnly = !isStartOnly && normType === 'finish';
+                const isSplitFinish = !isStartOnly && normType === 'splitFinish';
+                const isHost = row.checkpoint.isHostAssigned;
 
                 return (
                   <tr 
                     key={row.checkpoint.id}
                     className={`hover:bg-slate-800/40 transition-colors ${
                       row.status === 'MISSED' ? 'bg-amber-950/15' : ''
-                    }`}
+                    } ${isHost ? 'bg-cyan-950/20' : ''}`}
                   >
                     <td className="py-3.5 px-4 font-bold text-slate-100">
-                      <div>{row.checkpoint.name}</div>
-                      {normalizeCheckpointType(row.checkpoint.type) === 'finish' ? (
+                      <div className="flex items-center gap-1.5">
+                        <span>{row.checkpoint.name}</span>
+                        {isHost && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                            👑 Host
+                          </span>
+                        )}
+                      </div>
+                      {isStartOnly ? (
+                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 font-semibold uppercase">
+                          🚦 Start Line (Start Only) 🔒
+                        </span>
+                      ) : isFinishOnly ? (
                         <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-rose-950/80 text-rose-300 border border-rose-500/30 font-semibold uppercase">
                           🏁 Finish Line (Finish Only) 🔒
                         </span>
-                      ) : normalizeCheckpointType(row.checkpoint.type) === 'splitFinish' ? (
+                      ) : isSplitFinish ? (
                         <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 font-semibold uppercase">
                           ⚡ Split Gate (Split & Finish)
                         </span>
@@ -365,11 +381,19 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                     </td>
 
                     <td className="py-3.5 px-4 text-slate-300 font-semibold">
-                      {formatDistance(row.checkpoint.distanceMeters, race.displayUnit)}
+                      {isStartOnly ? '0 m' : formatDistance(row.checkpoint.distanceMeters, race.displayUnit)}
                     </td>
 
                     <td className="py-3.5 px-4">
-                      {session ? (
+                      {isHost ? (
+                        <div>
+                          <div className="font-bold text-amber-300 flex items-center gap-1">
+                            <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+                            <span>{row.checkpoint.assignedStaffName || 'Host'}</span>
+                          </div>
+                          <div className="text-[10px] text-amber-400/80 font-mono">Host Timing Gate</div>
+                        </div>
+                      ) : session ? (
                         <div>
                           <div className="font-bold text-slate-200">{session.staffName}</div>
                           <div className="text-[10px] text-slate-400">{session.deviceName}</div>
@@ -382,7 +406,12 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                     </td>
 
                     <td className="py-3.5 px-4">
-                      {isOnline ? (
+                      {isHost ? (
+                        <span className="px-2.5 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold inline-flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                          <span>HOST DEVICE</span>
+                        </span>
+                      ) : isOnline ? (
                         <span className="px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold inline-flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           <span>CONNECTED</span>
@@ -446,12 +475,16 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                       <div className="flex items-center justify-end gap-2">
                         {/* Host Self-Assignment Button */}
                         <button
-                          onClick={() => onAssignSelfToCheckpoint(row.checkpoint)}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
-                          title="Open Checkpoint Split Screen as Host"
+                          onClick={() => onAssignSelfToCheckpoint?.(row.checkpoint)}
+                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                            isHost
+                              ? 'bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 shadow-sm shadow-cyan-500/20'
+                              : 'bg-slate-800 hover:bg-slate-700 text-cyan-300'
+                          }`}
+                          title="Open Checkpoint Gate as Host"
                         >
                           <UserCheck className="w-3.5 h-3.5" />
-                          <span>Time as Host</span>
+                          <span>{isHost ? 'Time as Host' : 'Assign Myself'}</span>
                         </button>
 
                         {/* QR Code / Join Code Modal Opener */}

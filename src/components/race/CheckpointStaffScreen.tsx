@@ -270,13 +270,48 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   };
 
   const normalizedType = normalizeCheckpointType(checkpoint.type);
-  const isFinishOnly = normalizedType === 'finish';
-  const isSplitOnly = normalizedType === 'splitOnly';
-  const isSplitFinish = normalizedType === 'splitFinish';
+  const isStartOnly = normalizedType === 'start' || checkpoint.isStart;
+  const isFinishOnly = !isStartOnly && normalizedType === 'finish';
+  const isSplitOnly = !isStartOnly && normalizedType === 'splitOnly';
+  const isSplitFinish = !isStartOnly && normalizedType === 'splitFinish';
 
   const isRunning = isRaceRunning(race.status);
   const isFinished = isRaceFinished(race.status);
   const isWaiting = isRaceWaiting(race.status);
+
+  // START trigger for Start Line staff
+  const handleRecordStart = async () => {
+    if (isRunning || isFinished) {
+      return;
+    }
+    setSubmitting(true);
+    setSyncStatus('SYNCING');
+    try {
+      const startTimestamp = TimeSyncService.now();
+      await RaceService.startRace(race.id, {
+        startCheckpointId: checkpoint.id,
+        staffName,
+        deviceId: deviceName,
+        startTimestamp
+      });
+      setSyncStatus('SAVED');
+      showToast({ 
+        type: 'success', 
+        title: 'Race Started!', 
+        message: 'Synchronized race timer started across all staff devices.' 
+      });
+    } catch (err: any) {
+      console.error('Error starting race:', err);
+      setSyncStatus('FAILED');
+      showToast({ 
+        type: 'error', 
+        title: 'Start Failed', 
+        message: err.message || 'Failed to start race.' 
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-3 sm:p-6 max-w-lg mx-auto space-y-4 sm:space-y-6">
@@ -329,7 +364,11 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
-                {isFinishOnly ? (
+                {isStartOnly ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/30">
+                    🚦 START LINE (START ONLY) 🔒
+                  </span>
+                ) : isFinishOnly ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-500/30">
                     🏁 FINISH LINE (FINISH ONLY) 🔒
                   </span>
@@ -347,7 +386,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
                 {checkpoint.name}
               </h1>
               <div className="text-xs sm:text-sm font-mono text-cyan-300 font-semibold mt-0.5">
-                Distance: {formatDistance(checkpoint.distanceMeters, race.displayUnit)}
+                Distance: {isStartOnly ? '0 m (Fixed)' : formatDistance(checkpoint.distanceMeters, race.displayUnit)}
               </div>
             </div>
 
@@ -465,7 +504,40 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
 
       {/* Bottom Action Area: Authority-Based Buttons */}
       <div className="space-y-3">
-        {isRunning && (
+        {/* START LINE CONTROLS */}
+        {isStartOnly && isWaiting && (
+          <div className="space-y-2">
+            <button
+              onClick={handleRecordStart}
+              disabled={submitting}
+              className="w-full py-5 sm:py-6 rounded-2xl font-mono text-lg sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer min-h-[60px] bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-500/30 active:scale-[0.98]"
+            >
+              <Zap className="w-6 h-6 fill-current text-slate-950" />
+              <span>START RACE</span>
+            </button>
+            <div className="text-center text-[11px] font-mono text-slate-400">
+              Start Line • Authoritative Race Start (Locks after starting) 🔒
+            </div>
+          </div>
+        )}
+
+        {isStartOnly && isRunning && (
+          <div className="space-y-2">
+            <button
+              disabled
+              className="w-full py-5 sm:py-6 rounded-2xl font-mono text-lg sm:text-2xl font-black flex items-center justify-center gap-3 shadow-xl bg-slate-900 border border-emerald-500/40 text-emerald-400 cursor-default min-h-[60px]"
+            >
+              <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+              <span>RACE STARTED</span>
+            </button>
+            <div className="text-center text-[11px] font-mono text-slate-400">
+              Start Line • Race in progress (Recorded at 00:00.000) 🔒
+            </div>
+          </div>
+        )}
+
+        {/* NON-START CHECKPOINT RUNNING CONTROLS */}
+        {!isStartOnly && isRunning && (
           <div className="space-y-3">
             
             {/* CASE 1: Finish Line (Finish ONLY - NO Split Button) */}
@@ -571,10 +643,10 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
           </div>
         )}
 
-        {race.status === 'READY' && (
+        {!isStartOnly && isWaiting && (
           <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center text-xs font-mono text-slate-400">
             <Info className="w-4 h-4 text-cyan-400 mx-auto mb-1.5" />
-            Stay on this screen. As soon as the Host triggers Start, the live clock and action buttons will activate automatically.
+            Stay on this screen. As soon as the Host or Start Line staff triggers Start, the live clock and action buttons will activate automatically.
           </div>
         )}
       </div>

@@ -26,6 +26,7 @@ import { JoinCheckpointPage } from './pages/JoinCheckpointPage';
 import { CheckpointScreenPage } from './pages/CheckpointScreenPage';
 import { ActivityResultPage } from './pages/ActivityResultPage';
 import { PublicResultsPage } from './pages/PublicResultsPage';
+import { LeaderboardPage } from './pages/LeaderboardPage';
 import { PublicResultDetailPage } from './pages/PublicResultDetailPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
@@ -111,8 +112,9 @@ export default function App() {
                 {/* 5. CHECKPOINT TIMING SCREEN */}
                 <Route path="/checkpoint/:checkpointId" element={<CheckpointScreenPage />} />
 
-                {/* 6. PUBLIC RACE RESULTS */}
+                {/* 6. PUBLIC RACE RESULTS & LEADERBOARD */}
                 <Route path="/results" element={<PublicResultsPage />} />
+                <Route path="/results/leaderboard" element={<LeaderboardPage />} />
                 <Route path="/results/:resultId" element={<PublicResultDetailPage />} />
 
                 {/* 7. ACTIVITY RESULT */}
