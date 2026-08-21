@@ -21,6 +21,7 @@ import { RaceService } from '../../services/raceService';
 import { useTimeSync, TimeSyncService } from '../../services/timeSyncService';
 import { formatDistance, formatTimeMs, calculateRaceStatistics } from '../../utils/raceCalculations';
 import { RaceTimerClock } from './RaceTimerClock';
+import { LiveRaceProgressTimeline } from './LiveRaceProgressTimeline';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { useToast } from '../../context/ToastContext';
 import { 
@@ -143,6 +144,8 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   // Check if this checkpoint has already recorded a split or finish
   const thisCheckpointEvent = events.find((e) => e.checkpointId === checkpoint.id);
   const hasRecorded = !!thisCheckpointEvent;
+  const stats = calculateRaceStatistics(race, events);
+  const thisCpResult = stats.processedCheckpoints.find((c) => c.checkpoint.id === checkpoint.id);
 
   // Debounced SPLIT trigger (for Split Gates)
   const handleRecordSplit = async () => {
@@ -274,8 +277,6 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   const isRunning = isRaceRunning(race.status);
   const isFinished = isRaceFinished(race.status);
   const isWaiting = isRaceWaiting(race.status);
-
-  const stats = calculateRaceStatistics(race, events);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-3 sm:p-6 max-w-lg mx-auto space-y-4 sm:space-y-6">
@@ -419,15 +420,44 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
 
         {/* Recorded Split/Finish Confirmation Banner */}
         {hasRecorded && thisCheckpointEvent && (
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-mono text-left flex items-center justify-between shadow-lg animate-fadeIn">
-            <div className="flex items-center gap-2.5">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-              <div>
-                <div className="font-bold text-xs sm:text-sm">
-                  {thisCheckpointEvent.eventType === 'FINISH' ? 'Official Finish Recorded' : 'Checkpoint Split Recorded'}: {formatTimeMs(thisCheckpointEvent.elapsedMs)}
-                </div>
-                <div className="text-[10px] sm:text-[11px] text-emerald-400/80">Saved & Synchronized to Cloud Database</div>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-mono text-left space-y-2.5 shadow-lg animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                <span className="font-bold text-xs sm:text-sm text-emerald-200 uppercase tracking-wider">
+                  ✓ {thisCheckpointEvent.eventType === 'FINISH' ? 'OFFICIAL FINISH RECORDED' : 'SPLIT RECORDED'}
+                </span>
               </div>
+              <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-900/60 text-emerald-300 border border-emerald-500/30">
+                SYNCHRONIZED
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+              <div>
+                <span className="text-[10px] text-slate-400 block">Checkpoint</span>
+                <strong className="text-slate-100">{checkpoint.name}</strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Split Time</span>
+                <strong className="text-cyan-300">{formatTimeMs(thisCheckpointEvent.elapsedMs)}</strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Segment Time</span>
+                <strong className="text-slate-100">
+                  {thisCpResult?.segment ? formatTimeMs(thisCpResult.segment.segmentElapsedMs) : formatTimeMs(thisCheckpointEvent.elapsedMs)}
+                </strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Pace / Speed</span>
+                <strong className="text-amber-300">{thisCpResult?.segment?.segmentPaceFormatted || '—'}</strong>{' '}
+                <span className="text-emerald-300 text-[10px]">({thisCpResult?.segment?.segmentSpeedFormatted || '—'})</span>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-emerald-400/80 border-t border-emerald-500/20 pt-1.5 flex flex-wrap items-center justify-between gap-1">
+              <span>Recorded by: <strong>{thisCheckpointEvent.staffName || staffName}</strong> ({thisCheckpointEvent.deviceId || deviceName})</span>
+              <span>Broadcast to Host & all checkpoints</span>
             </div>
           </div>
         )}
@@ -548,6 +578,14 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
           </div>
         )}
       </div>
+
+      {/* Real-Time Live Checkpoint Progress & Predictions */}
+      <LiveRaceProgressTimeline
+        race={race}
+        events={events}
+        currentCheckpointId={checkpoint.id}
+        staffName={staffName}
+      />
 
       {/* Finish Race Confirmation Modal */}
       <ConfirmModal

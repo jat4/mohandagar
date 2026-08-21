@@ -14,6 +14,7 @@ import {
   formatTimeMs 
 } from '../../utils/raceCalculations';
 import { RaceTimerClock } from './RaceTimerClock';
+import { LiveRaceProgressTimeline } from './LiveRaceProgressTimeline';
 import { QrCodeModal } from './QrCodeModal';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { 
@@ -41,9 +42,14 @@ interface RaceLiveDashboardProps {
   race: Race;
   events: TimingEvent[];
   staffSessions: StaffSession[];
-  onOpenSummary: () => void;
-  onAssignSelfToCheckpoint: (checkpoint: Checkpoint) => void;
-  onResetRace: () => void;
+  onOpenSummary?: () => void;
+  onViewSummary?: () => void;
+  onAssignSelfToCheckpoint?: (checkpoint: Checkpoint) => void;
+  onTimeCheckpointAsHost?: (checkpoint: Checkpoint) => void;
+  onOpenQrCode?: (checkpoint: Checkpoint) => void;
+  onStartRace?: () => void;
+  onFinishRace?: () => void;
+  onResetRace?: () => void;
 }
 
 export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
@@ -51,7 +57,12 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
   events,
   staffSessions,
   onOpenSummary,
+  onViewSummary,
   onAssignSelfToCheckpoint,
+  onTimeCheckpointAsHost,
+  onOpenQrCode,
+  onStartRace,
+  onFinishRace,
   onResetRace
 }) => {
   const [selectedQrCheckpoint, setSelectedQrCheckpoint] = useState<Checkpoint | null>(null);
@@ -281,6 +292,13 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
         </div>
 
       </div>
+
+      {/* Real-Time Live Checkpoint Progress & Arrival Prediction */}
+      <LiveRaceProgressTimeline
+        race={race}
+        events={events}
+        isHostView={true}
+      />
 
       {/* Checkpoint Live Table & Staff Devices */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl">

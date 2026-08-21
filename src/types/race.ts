@@ -216,3 +216,35 @@ export interface PublishedResult {
   notes?: string;
 }
 
+export interface CheckpointPrediction {
+  targetCheckpointId: string;
+  targetCheckpointName: string;
+  targetDistanceMeters: number;
+  remainingDistanceMeters: number;
+  estimatedSegmentTimeMs: number;
+  estimatedSegmentTimeFormatted: string; // e.g. "00:00.39"
+  estimatedRaceElapsedMs: number;
+  estimatedRaceElapsedFormatted: string; // e.g. "00:12.100"
+  expectedWallClockTimeFormatted: string; // e.g. "18:42:31"
+  basedOnPaceFormatted: string; // e.g. "3:14/km"
+  basedOnSpeedFormatted: string; // e.g. "18.50 km/h"
+  basedOnPaceSecondsPerKm: number;
+  basedOnSpeedKmh: number;
+  fromCheckpointName: string;
+  isFinishLine: boolean;
+}
+
+export interface LiveRunnerProgress {
+  statusText: string;
+  lastRecordedCheckpoint: ProcessedCheckpointResult | null;
+  lastRecordedIndex: number;
+  lastRecordedEvent: TimingEvent | null;
+  nextCheckpoint: Checkpoint | null;
+  nextPrediction: CheckpointPrediction | null;
+  finishPrediction: CheckpointPrediction | null;
+  isRaceRunning: boolean;
+  isRaceFinished: boolean;
+  recordedCount: number;
+  totalCount: number;
+}
+
