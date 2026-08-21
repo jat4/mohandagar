@@ -68,7 +68,7 @@ export const HostRacesPage: React.FC = () => {
         </Link>
 
         <Link
-          to="/host"
+          to="/host/race/new"
           className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold font-mono text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all"
         >
           <Plus className="w-4 h-4" />

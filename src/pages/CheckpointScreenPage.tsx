@@ -80,9 +80,9 @@ export const CheckpointScreenPage: React.FC = () => {
       race.id,
       (updatedRace) => {
         if (updatedRace) {
-          setRace(updatedRace);
+          setRace({ ...updatedRace });
           const cp = updatedRace.checkpoints?.find((c) => c.id === checkpoint.id);
-          if (cp) setCheckpoint(cp);
+          if (cp) setCheckpoint({ ...cp });
         }
       },
       (err) => console.error('Checkpoint race subscription error:', err)
@@ -90,7 +90,7 @@ export const CheckpointScreenPage: React.FC = () => {
 
     const unsubEvents = RaceService.subscribeToTimingEvents(
       race.id,
-      (evts) => setEvents(evts)
+      (evts) => setEvents([...evts])
     );
 
     return () => {

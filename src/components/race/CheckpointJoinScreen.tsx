@@ -99,9 +99,9 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
       resolvedRace.id,
       (updatedRace) => {
         if (updatedRace) {
-          setResolvedRace(updatedRace);
+          setResolvedRace({ ...updatedRace });
           const cp = updatedRace.checkpoints.find((c) => c.id === resolvedCheckpoint?.id);
-          if (cp) setResolvedCheckpoint(cp);
+          if (cp) setResolvedCheckpoint({ ...cp });
         }
       },
       (err) => console.error(err)
@@ -109,7 +109,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
 
     const unsubEvents = RaceService.subscribeToTimingEvents(
       resolvedRace.id,
-      (evts) => setEvents(evts)
+      (evts) => setEvents([...evts])
     );
 
     return () => {
@@ -131,21 +131,21 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
     try {
       const mapping = await RaceService.resolveJoinCode(code);
       if (!mapping || !mapping.active) {
-        setErrorMessage(`Checkpoint join code "${code}" is invalid or expired.`);
+        setErrorMessage('Checkpoint QR is invalid or expired.');
         setLoading(false);
         return;
       }
 
       const race = await RaceService.getRace(mapping.raceId);
       if (!race) {
-        setErrorMessage('Race was not found or has been removed.');
+        setErrorMessage('Checkpoint QR is invalid or expired.');
         setLoading(false);
         return;
       }
 
       const checkpoint = race.checkpoints.find((c) => c.id === mapping.checkpointId);
       if (!checkpoint) {
-        setErrorMessage('Assigned checkpoint could not be found in race.');
+        setErrorMessage('Checkpoint QR is invalid or expired.');
         setLoading(false);
         return;
       }

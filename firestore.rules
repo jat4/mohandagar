@@ -50,8 +50,12 @@ service cloud.firestore {
       match /events/{eventId} {
         allow get, list: if true;
         allow create: if isValidId(eventId) && isValidTimingEvent(incoming());
-        // Timing events are strictly IMMUTABLE
-        allow update, delete: if false;
+        // Timing events are immutable on update; deletion permitted by race host or admin for race cleanup
+        allow update: if false;
+        allow delete: if isValidId(eventId) && (
+          isAdmin() || 
+          (isSignedIn() && get(/databases/$(database)/documents/races/$(raceId)).data.hostUid == request.auth.uid)
+        );
       }
 
       // Subcollection: Staff Sessions & Device Heartbeats

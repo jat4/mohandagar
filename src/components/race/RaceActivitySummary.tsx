@@ -129,9 +129,9 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
     try {
       await RaceService.deleteRaceResult(race.id);
       showToast({
-        type: 'warning',
-        title: 'Result Deleted',
-        message: 'Published result snapshot marked as DELETED.'
+        type: 'info',
+        title: 'Result Permanently Deleted',
+        message: 'Published result permanently removed from Firebase public directory.'
       });
       setShowDeleteConfirm(false);
     } catch (err: any) {
@@ -376,8 +376,8 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
       <ConfirmModal
         isOpen={showDeleteConfirm}
         title="Delete Published Race Result?"
-        message="Are you sure you want to mark this published result snapshot as DELETED? The private race session data in your host controller will remain safe."
-        confirmText="Delete Result"
+        message="Are you sure you want to permanently delete this published result record from Firestore? The result will be immediately removed from the public directory."
+        confirmText="Delete Permanently"
         cancelText="Cancel"
         variant="danger"
         onConfirm={handleDeleteResult}

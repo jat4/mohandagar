@@ -18,6 +18,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { HostDashboardPage } from './pages/HostDashboardPage';
 import { HostRacesPage } from './pages/HostRacesPage';
+import { HostCreateRacePage } from './pages/HostCreateRacePage';
 import { HostRaceLivePage } from './pages/HostRaceLivePage';
 import { HostRaceCheckpointsPage } from './pages/HostRaceCheckpointsPage';
 import { HostRaceResultsPage } from './pages/HostRaceResultsPage';
@@ -27,6 +28,7 @@ import { ActivityResultPage } from './pages/ActivityResultPage';
 import { PublicResultsPage } from './pages/PublicResultsPage';
 import { PublicResultDetailPage } from './pages/PublicResultDetailPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RouteTitleManager } from './components/common/RouteTitleManager';
 
 /**
  * Migration helper to smoothly redirect legacy hash-based URLs
@@ -71,6 +73,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <RouteTitleManager />
       <AuthProvider>
         <ToastProvider>
           <LegacyHashRedirector />
@@ -91,6 +94,7 @@ export default function App() {
                 <Route element={<ProtectedRoute />}>
                   <Route path="/host" element={<HostDashboardPage />} />
                   <Route path="/host/races" element={<HostRacesPage />} />
+                  <Route path="/host/race/new" element={<HostCreateRacePage />} />
                   <Route path="/host/race/:raceId" element={<HostRaceLivePage />} />
                   <Route path="/host/race/:raceId/checkpoints" element={<HostRaceCheckpointsPage />} />
                   <Route path="/host/race/:raceId/results" element={<HostRaceResultsPage />} />

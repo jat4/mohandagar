@@ -250,8 +250,8 @@ export const HostRaceLivePage: React.FC = () => {
         isOpen={showResetConfirm}
         title="Reset Race Timings?"
         message="This will reset the race clock to READY status and clear all recorded checkpoint splits. Are you sure you want to proceed?"
-        confirmLabel="Yes, Reset Race"
-        cancelLabel="Cancel"
+        confirmText="Yes, Reset Race"
+        cancelText="Cancel"
         variant="danger"
         onConfirm={handleResetRace}
         onCancel={() => setShowResetConfirm(false)}

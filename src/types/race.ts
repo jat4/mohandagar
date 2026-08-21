@@ -1,4 +1,22 @@
-export type RaceStatus = 'SETUP' | 'READY' | 'RUNNING' | 'FINISHED' | 'CANCELLED';
+export type RaceStatus = 'SETUP' | 'READY' | 'WAITING' | 'RUNNING' | 'FINISHED' | 'CANCELLED';
+
+export function isRaceRunning(status?: string): boolean {
+  if (!status) return false;
+  const s = status.trim().toUpperCase();
+  return s === 'RUNNING';
+}
+
+export function isRaceFinished(status?: string): boolean {
+  if (!status) return false;
+  const s = status.trim().toUpperCase();
+  return s === 'FINISHED';
+}
+
+export function isRaceWaiting(status?: string): boolean {
+  if (!status) return true;
+  const s = status.trim().toUpperCase();
+  return s === 'WAITING' || s === 'READY' || s === 'SETUP';
+}
 
 export type DistanceUnit = 'METERS' | 'KILOMETERS' | 'MILES';
 

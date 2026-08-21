@@ -130,8 +130,9 @@ export class RaceService {
       // 1. Save Race Document
       await setDoc(doc(db, 'races', raceId), sanitizedRace);
 
-      // 2. Save Join Code lookups in parallel
-      const joinCodePromises = checkpoints.map((cp) => {
+      // 2. Save Join Code lookups in parallel (both with dash and without dash)
+      const joinCodePromises: Promise<any>[] = [];
+      checkpoints.forEach((cp) => {
         const mapping: JoinCodeMapping = {
           joinCode: cp.joinCode,
           raceId,
@@ -139,7 +140,13 @@ export class RaceService {
           createdAt: now,
           active: true
         };
-        return setDoc(doc(db, 'joinCodes', cp.joinCode.toUpperCase()), sanitizeFirestorePayload(mapping));
+        const rawCode = cp.joinCode.toUpperCase();
+        const noDashCode = cp.joinCode.replace(/-/g, '').toUpperCase();
+
+        joinCodePromises.push(setDoc(doc(db, 'joinCodes', rawCode), sanitizeFirestorePayload(mapping)));
+        if (noDashCode !== rawCode) {
+          joinCodePromises.push(setDoc(doc(db, 'joinCodes', noDashCode), sanitizeFirestorePayload(mapping)));
+        }
       });
 
       await Promise.all(joinCodePromises);
@@ -402,14 +409,43 @@ export class RaceService {
   }
 
   /**
-   * Resolve Join Code (e.g. "8K4P-29") to Race & Checkpoint
+   * Resolve Join Code (e.g. "8K4P-29" or "8K4P29") to Race & Checkpoint
    */
   static async resolveJoinCode(joinCode: string): Promise<JoinCodeMapping | null> {
-    const cleanedCode = joinCode.trim().toUpperCase();
+    const raw = joinCode.trim().toUpperCase();
+    if (!raw) return null;
+
+    const withDash = raw.includes('-') ? raw : (raw.length === 6 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw);
+    const withoutDash = raw.replace(/[^A-Z0-9]/g, '');
+
     try {
-      const snap = await getDoc(doc(db, 'joinCodes', cleanedCode));
-      if (!snap.exists()) return null;
-      return snap.data() as JoinCodeMapping;
+      // 1. Try exact cleaned code
+      let snap = await getDoc(doc(db, 'joinCodes', raw));
+      if (snap.exists()) return snap.data() as JoinCodeMapping;
+
+      // 2. Try with formatted dash
+      if (withDash !== raw) {
+        snap = await getDoc(doc(db, 'joinCodes', withDash));
+        if (snap.exists()) return snap.data() as JoinCodeMapping;
+      }
+
+      // 3. Try without dash
+      if (withoutDash && withoutDash !== raw) {
+        snap = await getDoc(doc(db, 'joinCodes', withoutDash));
+        if (snap.exists()) return snap.data() as JoinCodeMapping;
+      }
+
+      // 4. Fallback search across active joinCodes collection
+      const candidates = Array.from(new Set([raw, withDash, withoutDash].filter(Boolean)));
+      for (const candidate of candidates) {
+        const q = query(collection(db, 'joinCodes'), where('joinCode', '==', candidate), limit(1));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          return qSnap.docs[0].data() as JoinCodeMapping;
+        }
+      }
+
+      return null;
     } catch (error) {
       console.error('Resolve join code error:', error);
       return null;
@@ -525,27 +561,98 @@ export class RaceService {
   }
 
   /**
-   * Delete Race and all its subcollections and join codes permanently
+   * Delete Race and all its subcollections, join codes, and published results permanently
    */
   static async deleteRace(raceId: string, joinCodes: string[] = []): Promise<void> {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('You must be signed in as host to delete a race.');
+    }
+
     try {
-      // 1. Delete all events subcollection documents
-      const eventsSnap = await getDocs(collection(db, 'races', raceId, 'events'));
-      const eventDeletions = eventsSnap.docs.map((d) => deleteDoc(d.ref).catch(() => {}));
-      await Promise.all(eventDeletions);
+      // 1. Check race document to verify ownership and extract any checkpoint joinCodes
+      const raceSnap = await getDoc(doc(db, 'races', raceId)).catch(() => null);
+      const collectedJoinCodes = new Set<string>(joinCodes.map((c) => c.toUpperCase()));
 
-      // 2. Delete all staffSessions subcollection documents
-      const sessionsSnap = await getDocs(collection(db, 'races', raceId, 'staffSessions'));
-      const sessionDeletions = sessionsSnap.docs.map((d) => deleteDoc(d.ref).catch(() => {}));
-      await Promise.all(sessionDeletions);
+      if (raceSnap && raceSnap.exists()) {
+        const raceData = raceSnap.data() as Race;
+        if (raceData.hostUid && raceData.hostUid !== user.uid && user.email !== 'jatdgr@gmail.com') {
+          throw new Error('Unauthorized: Only the race creator or administrator can delete this race.');
+        }
+        if (raceData.checkpoints && Array.isArray(raceData.checkpoints)) {
+          raceData.checkpoints.forEach((cp) => {
+            if (cp.joinCode) collectedJoinCodes.add(cp.joinCode.toUpperCase());
+          });
+        }
+      }
 
-      // 3. Delete joinCodes mappings
-      const codeDeletions = joinCodes.map((code) =>
-        deleteDoc(doc(db, 'joinCodes', code.toUpperCase())).catch(() => {})
-      );
+      // 2. Cascade Delete: Published Result record from /publishedResults (both direct doc and any matching query)
+      const pubDeletions: Promise<any>[] = [];
+      pubDeletions.push(deleteDoc(doc(db, 'publishedResults', raceId)).catch(() => {}));
+      try {
+        const pubQuery = query(collection(db, 'publishedResults'), where('raceId', '==', raceId));
+        const pubSnap = await getDocs(pubQuery);
+        pubSnap.forEach((d) => pubDeletions.push(deleteDoc(d.ref).catch(() => {})));
+      } catch (err) {
+        console.warn('Cascade delete publishedResults query warning:', err);
+      }
+      await Promise.all(pubDeletions);
+
+      // 3. Cascade Delete: Timing Events subcollection (/races/{raceId}/events)
+      try {
+        const eventsSnap = await getDocs(collection(db, 'races', raceId, 'events'));
+        const eventDeletions = eventsSnap.docs.map((d) => deleteDoc(d.ref).catch((e) => {
+          console.warn('Event delete warning:', e);
+        }));
+        await Promise.all(eventDeletions);
+      } catch (err) {
+        console.warn('Cascade delete events subcollection warning:', err);
+      }
+
+      // 4. Cascade Delete: Staff Sessions subcollection (/races/{raceId}/staffSessions)
+      try {
+        const sessionsSnap = await getDocs(collection(db, 'races', raceId, 'staffSessions'));
+        const sessionDeletions = sessionsSnap.docs.map((d) => deleteDoc(d.ref).catch((e) => {
+          console.warn('Session delete warning:', e);
+        }));
+        await Promise.all(sessionDeletions);
+      } catch (err) {
+        console.warn('Cascade delete staffSessions subcollection warning:', err);
+      }
+
+      // 5. Cascade Delete: Potential subcollections defensively
+      const candidateSubcollections = ['checkpoints', 'splits', 'results', 'timings', 'activity'];
+      for (const subcol of candidateSubcollections) {
+        try {
+          const snap = await getDocs(collection(db, 'races', raceId, subcol));
+          if (!snap.empty) {
+            await Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // 6. Cascade Delete: Join Codes lookup mappings
+      const codeDeletions: Promise<any>[] = [];
+      collectedJoinCodes.forEach((rawCode) => {
+        if (!rawCode) return;
+        codeDeletions.push(deleteDoc(doc(db, 'joinCodes', rawCode)).catch(() => {}));
+        const noDash = rawCode.replace(/-/g, '');
+        if (noDash !== rawCode) {
+          codeDeletions.push(deleteDoc(doc(db, 'joinCodes', noDash)).catch(() => {}));
+        }
+      });
+      try {
+        const joinQuery = query(collection(db, 'joinCodes'), where('raceId', '==', raceId));
+        const joinSnap = await getDocs(joinQuery);
+        joinSnap.forEach((d) => codeDeletions.push(deleteDoc(d.ref).catch(() => {})));
+      } catch (err) {
+        console.warn('Cascade delete joinCodes query warning:', err);
+      }
       await Promise.all(codeDeletions);
 
-      // 4. Delete root race document
+      // 7. Finally Delete Root Race Document
       await deleteDoc(doc(db, 'races', raceId));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `races/${raceId}`);
@@ -629,20 +736,27 @@ export class RaceService {
   }
 
   /**
-   * Delete a published race result (marks resultStatus = 'DELETED')
+   * Permanently delete a published race result document from Firestore
    */
   static async deleteRaceResult(raceId: string): Promise<void> {
     const user = auth.currentUser;
     if (!user) throw new Error('You must be signed in to delete result.');
-    const now = TimeSyncService.now();
 
     try {
-      await updateDoc(doc(db, 'publishedResults', raceId), {
-        resultStatus: 'DELETED',
-        updatedAt: now
-      });
+      const deletions: Promise<any>[] = [];
+      deletions.push(deleteDoc(doc(db, 'publishedResults', raceId)));
+
+      try {
+        const pubQuery = query(collection(db, 'publishedResults'), where('raceId', '==', raceId));
+        const pubSnap = await getDocs(pubQuery);
+        pubSnap.forEach((d) => deletions.push(deleteDoc(d.ref)));
+      } catch (err) {
+        console.warn('Querying publishedResults deletion warning:', err);
+      }
+
+      await Promise.all(deletions);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `publishedResults/${raceId}`);
+      handleFirestoreError(error, OperationType.DELETE, `publishedResults/${raceId}`);
     }
   }
 

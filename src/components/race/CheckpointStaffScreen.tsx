@@ -8,10 +8,13 @@ import {
   Race, 
   Checkpoint, 
   TimingEvent, 
-  StaffSession,
+  StaffSession, 
   normalizeCheckpointType,
   isSplitAllowed,
-  isFinishAllowed
+  isFinishAllowed,
+  isRaceRunning,
+  isRaceFinished,
+  isRaceWaiting
 } from '../../types/race';
 import { RaceService } from '../../services/raceService';
 import { useTimeSync, TimeSyncService } from '../../services/timeSyncService';
@@ -75,11 +78,27 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   const timeSync = useTimeSync();
   const [recalibrating, setRecalibrating] = useState(false);
 
-  const sessionId = useRef(`session_${checkpoint.id}_${Date.now()}`).current;
+  const sessionId = useRef(() => {
+    const key = `checkpoint_staff_session_${checkpoint.id}`;
+    const saved = localStorage.getItem(key);
+    if (saved) return saved;
+    const generated = `session_${checkpoint.id}_${Date.now()}`;
+    localStorage.setItem(key, generated);
+    return generated;
+  }).current();
 
-  // Heartbeat loop
+  // Heartbeat loop & network sync
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      TimeSyncService.sync();
+      RaceService.updateStaffHeartbeat(race.id, sessionId, {
+        checkpointId: checkpoint.id,
+        staffName,
+        deviceName,
+        status: 'ONLINE'
+      });
+    };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
@@ -124,7 +143,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
 
   // Debounced SPLIT trigger (for Split Gates)
   const handleRecordSplit = async () => {
-    if (!race.startTimestamp || race.status !== 'RUNNING') {
+    if (!race.startTimestamp || !isRaceRunning(race.status)) {
       showToast({ type: 'warning', title: 'Race Not Running', message: 'The race has not been started yet by the Host.' });
       return;
     }
@@ -169,7 +188,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
 
   // Immediate Authoritative FINISH Capture (Captured BEFORE opening confirmation dialog)
   const handleTriggerFinishCapture = () => {
-    if (!race.startTimestamp || race.status !== 'RUNNING') {
+    if (!race.startTimestamp || !isRaceRunning(race.status)) {
       showToast({ type: 'warning', title: 'Race Not Running', message: 'The race is not currently in progress.' });
       return;
     }
@@ -249,8 +268,9 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   const isSplitOnly = normalizedType === 'splitOnly';
   const isSplitFinish = normalizedType === 'splitFinish';
 
-  const isRunning = race.status === 'RUNNING';
-  const isFinished = race.status === 'FINISHED';
+  const isRunning = isRaceRunning(race.status);
+  const isFinished = isRaceFinished(race.status);
+  const isWaiting = isRaceWaiting(race.status);
 
   const stats = calculateRaceStatistics(race, events);
 
@@ -382,13 +402,13 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
           />
 
           <div className="mt-2 text-xs font-mono">
-            {race.status === 'READY' && (
-              <span className="text-amber-400">Waiting for Host to start race...</span>
+            {isWaiting && (
+              <span className="text-amber-400 font-semibold">Waiting for Host to start race...</span>
             )}
-            {race.status === 'RUNNING' && (
+            {isRunning && (
               <span className="text-emerald-400 font-bold animate-pulse">● RACE IN PROGRESS</span>
             )}
-            {race.status === 'FINISHED' && (
+            {isFinished && (
               <span className="text-slate-400 font-bold">● RACE COMPLETED</span>
             )}
           </div>

@@ -248,9 +248,9 @@ export const RaceHistoryView: React.FC<RaceHistoryViewProps> = ({
       {/* Confirmation Modal for Permanent Delete */}
       <ConfirmModal
         isOpen={Boolean(raceToDelete)}
-        title="Permanently Delete Race?"
-        message={`Are you sure you want to delete "${raceToDelete?.name}" (${raceToDelete?.runnerName})? This will permanently erase all recorded split timestamps, pacing analytics, and checkpoint join codes. This action cannot be undone.`}
-        confirmText="Yes, Delete Permanently"
+        title="Delete this race permanently?"
+        message="This will permanently delete the race, checkpoints, timing data, staff sessions and published public results. This action cannot be undone."
+        confirmText="Delete Permanently"
         cancelText="Cancel"
         variant="danger"
         isLoading={deleting}

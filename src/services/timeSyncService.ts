@@ -97,6 +97,10 @@ class TimeSyncManager {
    * Performs NTP-style multi-probe clock offset calibration using HTTP response headers.
    * Discards outliers and calculates the median offset.
    */
+  public async sync(): Promise<SyncStats> {
+    return this.calibrate();
+  }
+
   public async calibrate(probeCount = 5): Promise<SyncStats> {
     if (this.isCalibrating) return this.getStats();
     this.isCalibrating = true;

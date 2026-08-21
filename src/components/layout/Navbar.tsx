@@ -14,8 +14,6 @@ import {
   LogOut, 
   User, 
   History, 
-  Share2, 
-  Check, 
   ChevronRight, 
   Home, 
   Layers,
@@ -31,21 +29,7 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [copiedUrl, setCopiedUrl] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const handleCopyCurrentLink = () => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopiedUrl(true);
-      showToast({
-        type: 'info',
-        title: 'URL Copied',
-        message: 'Direct link copied to clipboard.'
-      });
-      setTimeout(() => setCopiedUrl(false), 2000);
-    }).catch(console.error);
-  };
 
   const handleLogout = async () => {
     try {
@@ -105,11 +89,15 @@ export const Navbar: React.FC = () => {
         crumbs.push({ label: 'Race History' });
       } else if (parts[1] === 'race' && parts[2]) {
         crumbs.push({ label: 'Host Dashboard', to: '/host' });
-        crumbs.push({ label: `Race Controller`, to: `/host/race/${parts[2]}` });
-        if (parts[3] === 'checkpoints') {
-          crumbs.push({ label: 'Checkpoints & QR' });
-        } else if (parts[3] === 'results') {
-          crumbs.push({ label: 'Results & Analytics' });
+        if (parts[2] === 'new') {
+          crumbs.push({ label: 'Create New Race' });
+        } else {
+          crumbs.push({ label: `Race Controller`, to: `/host/race/${parts[2]}` });
+          if (parts[3] === 'checkpoints') {
+            crumbs.push({ label: 'Checkpoints & QR' });
+          } else if (parts[3] === 'results') {
+            crumbs.push({ label: 'Results & Analytics' });
+          }
         }
       }
     }
@@ -224,26 +212,6 @@ export const Navbar: React.FC = () => {
 
         {/* Right Action Icons & Auth User */}
         <div className="flex items-center gap-2 sm:gap-3">
-          
-          {/* Direct Link Share Button */}
-          <button
-            onClick={handleCopyCurrentLink}
-            title="Copy link to current page/checkpoint"
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 border border-slate-700 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            {copiedUrl ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span className="hidden lg:inline text-emerald-400 font-bold">Link Copied!</span>
-              </>
-            ) : (
-              <>
-                <Share2 className="w-4 h-4" />
-                <span className="hidden lg:inline">Share URL</span>
-              </>
-            )}
-          </button>
-
           {/* Auth State Button */}
           {currentUser ? (
             <div className="flex items-center gap-2">
@@ -257,7 +225,8 @@ export const Navbar: React.FC = () => {
               <button
                 onClick={handleLogout}
                 title="Sign out from Host"
-                className="p-2 rounded-xl bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-500/40 transition-colors cursor-pointer"
+                aria-label="Sign out"
+                className="p-2 rounded-xl bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-500/40 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-500/40"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -265,10 +234,12 @@ export const Navbar: React.FC = () => {
           ) : (
             <Link
               to="/login"
-              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-cyan-400 text-xs font-mono font-bold flex items-center gap-1.5 transition-all"
+              aria-label="Login"
+              title="Sign in to Host Account"
+              className="px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/40 hover:border-cyan-400 text-cyan-400 hover:text-cyan-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-cyan-950/30 whitespace-nowrap shrink-0 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
             >
-              <LogIn className="w-4 h-4" />
-              <span className="hidden sm:inline">Host Login</span>
+              <LogIn className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="font-semibold tracking-wide">Login</span>
             </Link>
           )}
 
@@ -323,6 +294,33 @@ export const Navbar: React.FC = () => {
             >
               Past Races & Results History
             </Link>
+          )}
+          {!currentUser ? (
+            <Link
+              to="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2.5 px-3 rounded-lg bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 font-bold flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <LogIn className="w-4 h-4 text-cyan-400" />
+                <span>Host Login</span>
+              </div>
+              <span className="text-[10px] text-cyan-400/80 font-mono">Sign In →</span>
+            </Link>
+          ) : (
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleLogout();
+              }}
+              className="w-full text-left py-2.5 px-3 rounded-lg bg-rose-950/30 border border-rose-500/30 text-rose-300 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <LogOut className="w-4 h-4 text-rose-400" />
+                <span>Sign Out</span>
+              </div>
+              <span className="text-[10px] text-rose-400/80 font-mono">End Session</span>
+            </button>
           )}
         </div>
       )}

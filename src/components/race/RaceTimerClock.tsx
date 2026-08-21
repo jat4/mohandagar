@@ -22,22 +22,26 @@ export const RaceTimerClock: React.FC<RaceTimerClockProps> = ({
   size = 'lg',
   className = ''
 }) => {
+  const start = startTimestamp ? Number(startTimestamp) : null;
+  const finish = finishTimestamp ? Number(finishTimestamp) : null;
+
   const [elapsedMs, setElapsedMs] = useState<number>(() => {
-    if (!startTimestamp) return 0;
-    if (finishTimestamp) return Math.max(0, finishTimestamp - startTimestamp);
-    return Math.max(0, TimeSyncService.now() - startTimestamp);
+    if (!start || isNaN(start)) return 0;
+    if (finish && !isNaN(finish)) return Math.max(0, finish - start);
+    if (isRunning) return Math.max(0, TimeSyncService.now() - start);
+    return 0;
   });
 
   const animFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!startTimestamp) {
+    if (!start || isNaN(start)) {
       setElapsedMs(0);
       return;
     }
 
-    if (finishTimestamp) {
-      setElapsedMs(Math.max(0, finishTimestamp - startTimestamp));
+    if (finish && !isNaN(finish)) {
+      setElapsedMs(Math.max(0, finish - start));
       return;
     }
 
@@ -48,18 +52,20 @@ export const RaceTimerClock: React.FC<RaceTimerClockProps> = ({
 
     const updateTimer = () => {
       const now = TimeSyncService.now();
-      setElapsedMs(Math.max(0, now - startTimestamp));
+      setElapsedMs(Math.max(0, now - start));
       animFrameRef.current = requestAnimationFrame(updateTimer);
     };
 
-    animFrameRef.current = requestAnimationFrame(updateTimer);
+    // Immediate initial sync on change
+    updateTimer();
 
     return () => {
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
       }
     };
-  }, [startTimestamp, finishTimestamp, isRunning]);
+  }, [start, finish, isRunning]);
 
   const sizeClasses = {
     sm: 'text-base sm:text-lg md:text-xl font-mono tracking-tight font-bold whitespace-nowrap',
