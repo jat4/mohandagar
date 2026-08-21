@@ -141,8 +141,8 @@ export const HomePage: React.FC = () => {
                 <span>EXPLORE RESULTS</span>
               </Link>
               <div className="text-center">
-                <Link to="/results" className="text-xs font-mono text-slate-400 hover:text-amber-400 underline">
-                  View Leaderboards & Splits
+                <Link to="/results/leaderboard" className="text-xs font-mono text-slate-400 hover:text-amber-400 underline">
+                  View Leaderboard
                 </Link>
               </div>
             </div>
