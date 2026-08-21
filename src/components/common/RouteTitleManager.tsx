@@ -19,7 +19,7 @@ export function getRouteTitle(pathname: string): string {
   if (cleanPath === '/results') {
     return 'Result';
   }
-  if (cleanPath === '/host') {
+  if (cleanPath === '/host' || cleanPath === '/host/dashboard') {
     return 'Runner Stopwatch – Host';
   }
   if (cleanPath === '/host/race/new') {
@@ -30,6 +30,15 @@ export function getRouteTitle(pathname: string): string {
   }
   if (cleanPath === '/join') {
     return 'Join Checkpoint – Runner Stopwatch';
+  }
+  if (cleanPath === '/how-it-works') {
+    return 'How It Works – Runner Stopwatch';
+  }
+  if (cleanPath === '/privacy-policy') {
+    return 'Privacy Policy – Runner Stopwatch';
+  }
+  if (cleanPath === '/terms-of-service') {
+    return 'Terms of Service – Runner Stopwatch';
   }
 
   // 2. Sub-paths & Dynamic Parameters

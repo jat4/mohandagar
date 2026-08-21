@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { RaceService } from '../../services/raceService';
 import { Race, Checkpoint, TimingEvent, normalizeCheckpointType } from '../../types/race';
 import { formatDistance } from '../../utils/raceCalculations';
@@ -43,6 +44,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
   onBackToMain,
   onJoinedStaff
 }) => {
+  const navigate = useNavigate();
   const [joinMethod, setJoinMethod] = useState<'QR' | 'MANUAL'>(() => {
     return initialJoinCode ? 'MANUAL' : 'QR';
   });
@@ -202,6 +204,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
           setJoined(false);
           onBackToMain();
         }}
+        onViewResult={() => navigate(`/activity/${resolvedRace.id}`)}
       />
     );
   }

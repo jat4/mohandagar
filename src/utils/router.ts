@@ -84,7 +84,7 @@ export function parseCurrentRoute(): AppRoute {
 export function routeToHash(route: AppRoute): string {
   switch (route.name) {
     case 'host-home':
-      return '#/host';
+      return '#/host/dashboard';
     case 'host-live':
       return `#/host/live?raceId=${encodeURIComponent(route.raceId)}`;
     case 'host-summary':

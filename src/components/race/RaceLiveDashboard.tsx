@@ -180,11 +180,12 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
 
             {isFinished && (
               <button
+                id="btn-view-result-host"
                 onClick={onOpenSummary}
                 className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer min-h-[48px]"
               >
                 <Trophy className="w-4 h-4" />
-                <span>View Full Activity & Export</span>
+                <span>View Result</span>
               </button>
             )}
 

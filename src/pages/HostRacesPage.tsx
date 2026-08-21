@@ -60,11 +60,11 @@ export const HostRacesPage: React.FC = () => {
       {/* Navigation Header */}
       <div className="flex items-center justify-between">
         <Link
-          to="/host"
+          to="/host/dashboard"
           className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 hover:text-cyan-300 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Host Overview</span>
+          <span>Back to Dashboard</span>
         </Link>
 
         <Link
@@ -88,7 +88,7 @@ export const HostRacesPage: React.FC = () => {
           onSelectRace={(r) => navigate(`/host/race/${r.id}`)}
           onViewResults={(r) => navigate(`/host/race/${r.id}/results`)}
           onDeleteRace={handleDeleteRace}
-          onBackToDashboard={() => navigate('/host')}
+          onBackToDashboard={() => navigate('/host/dashboard')}
         />
       )}
 

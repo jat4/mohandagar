@@ -9,7 +9,7 @@ export function isRaceRunning(status?: string): boolean {
 export function isRaceFinished(status?: string): boolean {
   if (!status) return false;
   const s = status.trim().toUpperCase();
-  return s === 'FINISHED';
+  return s === 'FINISHED' || s === 'COMPLETED';
 }
 
 export function isRaceWaiting(status?: string): boolean {

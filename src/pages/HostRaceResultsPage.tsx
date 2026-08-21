@@ -102,7 +102,7 @@ export const HostRaceResultsPage: React.FC = () => {
           <span>{error || 'Race not found'}</span>
         </div>
         <Link
-          to="/host"
+          to="/host/dashboard"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-200 text-xs hover:bg-slate-700 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />

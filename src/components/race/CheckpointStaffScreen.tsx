@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Race, 
   Checkpoint, 
@@ -20,7 +21,6 @@ import { RaceService } from '../../services/raceService';
 import { useTimeSync, TimeSyncService } from '../../services/timeSyncService';
 import { formatDistance, formatTimeMs, calculateRaceStatistics } from '../../utils/raceCalculations';
 import { RaceTimerClock } from './RaceTimerClock';
-import { ActivityExportCard } from './ActivityExportCard';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { useToast } from '../../context/ToastContext';
 import { 
@@ -39,7 +39,8 @@ import {
   Info, 
   RefreshCw,
   AlertTriangle,
-  StopCircle
+  StopCircle,
+  Trophy
 } from 'lucide-react';
 
 interface CheckpointStaffScreenProps {
@@ -50,6 +51,7 @@ interface CheckpointStaffScreenProps {
   deviceName: string;
   isHost?: boolean;
   onExit: () => void;
+  onViewResult?: () => void;
 }
 
 export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
@@ -59,13 +61,14 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   staffName,
   deviceName,
   isHost,
-  onExit
+  onExit,
+  onViewResult
 }) => {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'SAVED' | 'SYNCING' | 'FAILED' | 'READY'>('READY');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [showExport, setShowExport] = useState(false);
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [pendingFinish, setPendingFinish] = useState<{
     capturedTimestamp: number;
@@ -519,23 +522,22 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         {isFinished && (
           <div className="space-y-3">
             <button
-              onClick={() => setShowExport(!showExport)}
-              className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold font-mono text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
+              id="btn-view-result"
+              onClick={() => {
+                if (onViewResult) {
+                  onViewResult();
+                } else {
+                  navigate(`/activity/${race.id}`);
+                }
+              }}
+              className="w-full py-5 sm:py-6 rounded-2xl font-mono text-lg sm:text-2xl font-black bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 hover:from-cyan-300 hover:via-teal-300 hover:to-emerald-300 text-slate-950 flex items-center justify-center gap-3 shadow-xl shadow-cyan-500/25 active:scale-[0.98] transition-all cursor-pointer min-h-[60px]"
             >
-              <Share2 className="w-4 h-4" />
-              <span>{showExport ? 'Hide Export Card' : 'Export Checkpoint Result (PNG/JPEG)'}</span>
+              <Trophy className="w-6 h-6 text-slate-950" />
+              <span>View Result</span>
             </button>
-
-            {showExport && (
-              <div className="pt-2 animate-fadeIn">
-                <ActivityExportCard
-                  stats={stats}
-                  isStaffSpecific={true}
-                  staffCheckpointName={checkpoint.name}
-                  customTitle={`Checkpoint Split Result: ${checkpoint.name}`}
-                />
-              </div>
-            )}
+            <div className="text-center text-[11px] font-mono text-slate-400">
+              Race Completed • View full results and export race report
+            </div>
           </div>
         )}
 

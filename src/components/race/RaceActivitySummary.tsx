@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Race, TimingEvent, PublishedResult, PublicationStatus } from '../../types/race';
 import { calculateRaceStatistics, formatDistance, formatTimeMs } from '../../utils/raceCalculations';
 import { PaceSpeedCharts } from './PaceSpeedCharts';
-import { ActivityExportCard } from './ActivityExportCard';
+import { downloadRaceCertificatePdf } from '../../services/pdfCertificateService';
 import { ResultQrCodeModal } from './ResultQrCodeModal';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { RaceService } from '../../services/raceService';
@@ -16,7 +16,7 @@ import {
   Clock, 
   Gauge, 
   TrendingUp, 
-  Share2, 
+  Download, 
   AlertTriangle, 
   CheckCircle2, 
   RotateCcw,
@@ -50,7 +50,7 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
   const { currentUser, isHost } = useAuth();
   const { showToast } = useToast();
 
-  const [showExportModal, setShowExportModal] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
@@ -62,6 +62,27 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
 
   const stats = calculateRaceStatistics(race, events);
   const isRaceOwner = currentUser && (currentUser.uid === race.hostUid);
+
+  const handleDownloadCertificate = async () => {
+    setDownloadingPdf(true);
+    try {
+      await downloadRaceCertificatePdf(stats, { raceId: race.id });
+      showToast({
+        type: 'success',
+        title: 'Certificate Downloaded',
+        message: 'Official race result PDF certificate saved successfully.'
+      });
+    } catch (err: any) {
+      console.error('PDF download error:', err);
+      showToast({
+        type: 'error',
+        title: 'Download Failed',
+        message: err.message || 'Failed to generate race certificate PDF.'
+      });
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   // Subscribe to live published status for this race
   useEffect(() => {
@@ -208,11 +229,13 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
           )}
 
           <button
-            onClick={() => setShowExportModal(!showExportModal)}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
+            id="btn-download-certificate"
+            onClick={handleDownloadCertificate}
+            disabled={downloadingPdf}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer disabled:opacity-50"
           >
-            <Share2 className="w-4 h-4" />
-            <span>{showExportModal ? 'Hide Export Card' : 'Export PNG / JPEG'}</span>
+            <Download className="w-4 h-4" />
+            <span>{downloadingPdf ? 'Generating PDF...' : 'Download Certificate'}</span>
           </button>
         </div>
       </div>
@@ -407,13 +430,6 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
         />
       )}
 
-      {/* Export Card Toggle Section */}
-      {showExportModal && (
-        <div className="animate-fadeIn">
-          <ActivityExportCard stats={stats} />
-        </div>
-      )}
-
       {/* KPI Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         
@@ -524,8 +540,8 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
       />
 
       {/* Detailed Splits Table */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-800">
           <div>
             <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
               <Timer className="w-5 h-5 text-cyan-400" />
@@ -541,7 +557,8 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-800">
+        {/* Desktop Table Layout (visible on md screens and above) */}
+        <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-800">
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px]">
               <tr>
@@ -628,6 +645,119 @@ export const RaceActivitySummary: React.FC<RaceActivitySummaryProps> = ({
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Compact Checkpoint Cards (visible on screens below md / 768px) */}
+        <div className="block md:hidden space-y-3.5">
+          {stats.processedCheckpoints.map((row, idx) => (
+            <div
+              key={row.checkpoint.id}
+              className={`p-4 rounded-2xl border ${
+                row.status === 'MISSED'
+                  ? 'bg-amber-950/20 border-amber-500/30'
+                  : 'bg-slate-950/80 border-slate-800'
+              } space-y-3 shadow-md`}
+            >
+              {/* Checkpoint Header: Order, Name, and Status Badge */}
+              <div className="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono font-bold text-xs shrink-0">
+                    #{idx + 1}
+                  </span>
+                  <span className="text-sm font-bold font-mono text-slate-100 break-words">
+                    {row.checkpoint.name}
+                  </span>
+                </div>
+
+                <div>
+                  {row.status === 'RECORDED' ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 inline-flex items-center gap-1 shrink-0">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>RECORDED</span>
+                    </span>
+                  ) : row.status === 'MISSED' ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-950/90 border border-amber-500/40 text-amber-300 inline-flex items-center gap-1 shrink-0">
+                      <AlertTriangle className="w-3 h-3" />
+                      <span>MISSED</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-400 shrink-0">
+                      {row.status}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Measured Segment Details */}
+              <div className="p-2.5 rounded-xl bg-slate-900/70 border border-slate-800/70 text-xs font-mono space-y-1">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold">Segment:</span>
+                  <span className="text-slate-200 font-bold text-right break-words">
+                    {row.segment ? `${row.segment.fromCheckpointName} → ${row.segment.toCheckpointName}` : '—'}
+                  </span>
+                </div>
+                {row.segment?.isMultiCheckpointSpan && (
+                  <div className="text-[10px] text-amber-400 font-bold text-right">
+                    Spans {row.segment.missedCheckpointsCount} Missed Checkpoint(s)
+                  </div>
+                )}
+              </div>
+
+              {/* Grid of Key Split Metrics */}
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                  <div className="text-[10px] uppercase text-slate-400">Distance</div>
+                  <div className="text-slate-200 font-bold mt-0.5">
+                    {row.cumulativeDistanceKm < 1 && (row.cumulativeDistanceMeters || 0) > 0
+                      ? `${row.cumulativeDistanceMeters} m`
+                      : `${row.cumulativeDistanceKm.toFixed(2)} km`}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                  <div className="text-[10px] uppercase text-slate-400">Segment Dist</div>
+                  <div className="text-slate-200 font-bold mt-0.5">
+                    {row.segment ? `${row.segment.segmentDistanceKm.toFixed(2)} km` : '—'}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                  <div className="text-[10px] uppercase text-slate-400">Segment Time</div>
+                  <div className="text-cyan-300 font-bold mt-0.5">
+                    {row.segment ? formatTimeMs(row.segment.segmentElapsedMs) : '—'}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                  <div className="text-[10px] uppercase text-slate-400">Segment Pace</div>
+                  <div className="text-amber-300 font-bold mt-0.5">
+                    {row.segment ? row.segment.segmentPaceFormatted : '—'}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                  <div className="text-[10px] uppercase text-slate-400">Segment Speed</div>
+                  <div className="text-emerald-300 font-bold mt-0.5">
+                    {row.segment ? row.segment.segmentSpeedFormatted : '—'}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                  <div className="text-[10px] uppercase text-slate-400">Cumulative Time</div>
+                  <div className="text-slate-100 font-bold mt-0.5">
+                    {row.cumulativeElapsedFormatted || '—'}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/50 col-span-2">
+                  <div className="text-[10px] uppercase text-slate-400">Cumulative Pace</div>
+                  <div className="text-slate-300 font-bold mt-0.5">
+                    {row.cumulativePaceFormatted || '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

@@ -21,7 +21,7 @@ import {
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirectUrl = searchParams.get('redirect') || '/host';
+  const redirectUrl = searchParams.get('redirect') || '/host/dashboard';
   const { signInWithGoogle, signUpWithEmail, currentUser } = useAuth();
   const { showToast } = useToast();
 

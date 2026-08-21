@@ -169,7 +169,7 @@ export const HomePage: React.FC = () => {
 
             <div className="space-y-2.5">
               <Link
-                to={isHost ? "/host" : "/login"}
+                to={isHost ? "/host/dashboard" : "/login"}
                 className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black font-mono text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-slate-950" />
@@ -224,9 +224,9 @@ export const HomePage: React.FC = () => {
             <div className="p-2.5 w-fit rounded-xl bg-blue-950/80 border border-blue-500/30 text-blue-400">
               <Award className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-bold text-slate-100">Rich Split Analytics & Export</h3>
+            <h3 className="text-base font-bold text-slate-100">Official PDF Result Certificates</h3>
             <p className="text-xs font-mono text-slate-400 leading-relaxed">
-              Generate pace/speed graphs, identify missed gates with clean gap markers, and export high-res race summary cards in PNG/JPEG.
+              Generate pace/speed graphs, identify missed gates with clean gap markers, and download official verified race result PDF certificates.
             </p>
           </div>
         </div>

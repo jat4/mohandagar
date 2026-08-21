@@ -358,6 +358,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         deviceName="Host Primary Device"
         isHost={true}
         onExit={() => setViewMode('CONTROLLER')}
+        onViewResult={() => setViewMode('SUMMARY')}
       />
     );
   }

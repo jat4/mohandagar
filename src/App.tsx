@@ -27,6 +27,9 @@ import { CheckpointScreenPage } from './pages/CheckpointScreenPage';
 import { ActivityResultPage } from './pages/ActivityResultPage';
 import { PublicResultsPage } from './pages/PublicResultsPage';
 import { PublicResultDetailPage } from './pages/PublicResultDetailPage';
+import { HowItWorksPage } from './pages/HowItWorksPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { TermsOfServicePage } from './pages/TermsOfServicePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RouteTitleManager } from './components/common/RouteTitleManager';
 
@@ -50,14 +53,14 @@ function LegacyHashRedirector() {
           const params = new URLSearchParams(hash.split('?')[1] || '');
           const raceId = params.get('raceId');
           if (raceId) navigate(`/host/race/${raceId}`, { replace: true });
-          else navigate('/host', { replace: true });
+          else navigate('/host/dashboard', { replace: true });
         } else if (hash.startsWith('host/summary')) {
           const params = new URLSearchParams(hash.split('?')[1] || '');
           const raceId = params.get('raceId');
           if (raceId) navigate(`/host/race/${raceId}/results`, { replace: true });
-          else navigate('/host', { replace: true });
+          else navigate('/host/dashboard', { replace: true });
         } else if (hash.startsWith('host')) {
-          navigate('/host', { replace: true });
+          navigate('/host/dashboard', { replace: true });
         }
       }
     }
@@ -92,7 +95,8 @@ export default function App() {
 
                 {/* 3. PROTECTED HOST ROUTES */}
                 <Route element={<ProtectedRoute />}>
-                  <Route path="/host" element={<HostDashboardPage />} />
+                  <Route path="/host" element={<Navigate to="/host/dashboard" replace />} />
+                  <Route path="/host/dashboard" element={<HostDashboardPage />} />
                   <Route path="/host/races" element={<HostRacesPage />} />
                   <Route path="/host/race/new" element={<HostCreateRacePage />} />
                   <Route path="/host/race/:raceId" element={<HostRaceLivePage />} />
@@ -114,7 +118,12 @@ export default function App() {
                 {/* 7. ACTIVITY RESULT */}
                 <Route path="/activity/:activityId" element={<ActivityResultPage />} />
 
-                {/* 8. 404 CATCH-ALL */}
+                {/* 8. INFORMATION PAGES */}
+                <Route path="/how-it-works" element={<HowItWorksPage />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+
+                {/* 9. 404 CATCH-ALL */}
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </main>

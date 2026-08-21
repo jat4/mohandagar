@@ -170,7 +170,7 @@ export const HostRaceLivePage: React.FC = () => {
           <span>{error || 'Race not found'}</span>
         </div>
         <Link
-          to="/host"
+          to="/host/dashboard"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-200 text-xs hover:bg-slate-700 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -186,11 +186,11 @@ export const HostRaceLivePage: React.FC = () => {
       {/* Sub-Header Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Link
-          to="/host"
+          to="/host/dashboard"
           className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 hover:text-cyan-300 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Host Overview</span>
+          <span>Back to Dashboard</span>
         </Link>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">

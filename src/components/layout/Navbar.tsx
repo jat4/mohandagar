@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { getActiveNavItem } from '../../utils/navigation';
 import { 
   Timer, 
   QrCode, 
@@ -30,6 +31,7 @@ export const Navbar: React.FC = () => {
   const navigate = useNavigate();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const activeNav = getActiveNavItem(location.pathname);
 
   const handleLogout = async () => {
     try {
@@ -61,6 +63,12 @@ export const Navbar: React.FC = () => {
       crumbs.push({ label: 'Host Login' });
     } else if (parts[0] === 'register') {
       crumbs.push({ label: 'Register Host' });
+    } else if (parts[0] === 'how-it-works') {
+      crumbs.push({ label: 'How It Works' });
+    } else if (parts[0] === 'privacy-policy') {
+      crumbs.push({ label: 'Privacy Policy' });
+    } else if (parts[0] === 'terms-of-service') {
+      crumbs.push({ label: 'Terms of Service' });
     } else if (parts[0] === 'results') {
       if (parts[1]) {
         crumbs.push({ label: 'Race Results', to: '/results' });
@@ -76,19 +84,19 @@ export const Navbar: React.FC = () => {
         crumbs.push({ label: 'Join Checkpoint' });
       }
     } else if (parts[0] === 'checkpoint') {
-      crumbs.push({ label: 'Staff Join', to: '/join' });
+      crumbs.push({ label: 'Join Checkpoint', to: '/join' });
       crumbs.push({ label: `Gate Timing: ${parts[1] || ''}` });
     } else if (parts[0] === 'activity') {
-      crumbs.push({ label: 'Activity Results', to: '/home' });
+      crumbs.push({ label: 'Race Results', to: '/results' });
       crumbs.push({ label: `Record: ${parts[1] || ''}` });
     } else if (parts[0] === 'host') {
-      if (parts.length === 1) {
+      if (parts.length === 1 || (parts.length === 2 && parts[1] === 'dashboard')) {
         crumbs.push({ label: 'Host Dashboard' });
       } else if (parts[1] === 'races') {
-        crumbs.push({ label: 'Host Dashboard', to: '/host' });
+        crumbs.push({ label: 'Host Dashboard', to: '/host/dashboard' });
         crumbs.push({ label: 'Race History' });
       } else if (parts[1] === 'race' && parts[2]) {
-        crumbs.push({ label: 'Host Dashboard', to: '/host' });
+        crumbs.push({ label: 'Host Dashboard', to: '/host/dashboard' });
         if (parts[2] === 'new') {
           crumbs.push({ label: 'Create New Race' });
         } else {
@@ -96,7 +104,7 @@ export const Navbar: React.FC = () => {
           if (parts[3] === 'checkpoints') {
             crumbs.push({ label: 'Checkpoints & QR' });
           } else if (parts[3] === 'results') {
-            crumbs.push({ label: 'Results & Analytics' });
+            crumbs.push({ label: 'Results & Certificate' });
           }
         }
       }
@@ -139,9 +147,9 @@ export const Navbar: React.FC = () => {
         <nav className="hidden md:flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 font-mono text-xs font-bold">
           <NavLink
             to="/home"
-            className={({ isActive }) =>
+            className={
               `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                isActive
+                activeNav === 'home'
                   ? 'bg-slate-800 text-cyan-400 shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`
@@ -153,60 +161,62 @@ export const Navbar: React.FC = () => {
 
           <NavLink
             to="/join"
-            className={({ isActive }) =>
+            className={
               `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                isActive || location.pathname.startsWith('/join') || location.pathname.startsWith('/checkpoint')
+                activeNav === 'join'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                   : 'text-slate-400 hover:text-slate-200'
               }`
             }
           >
             <QrCode className="w-3.5 h-3.5" />
-            <span>Staff Join</span>
+            <span>Join Checkpoint</span>
           </NavLink>
 
           <NavLink
             to="/results"
-            className={({ isActive }) =>
+            className={
               `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                isActive || location.pathname.startsWith('/results')
+                activeNav === 'results'
                   ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20'
                   : 'text-slate-400 hover:text-slate-200'
               }`
             }
           >
             <Award className="w-3.5 h-3.5" />
-            <span>Results</span>
+            <span>Race Results</span>
           </NavLink>
 
-          <NavLink
-            to="/host"
-            className={({ isActive }) =>
-              `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                isActive || (location.pathname.startsWith('/host') && !location.pathname.startsWith('/host/races'))
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 shadow-md shadow-emerald-500/20'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`
-            }
-          >
-            <Timer className="w-3.5 h-3.5" />
-            <span>Host Controller</span>
-          </NavLink>
+          {currentUser && (
+            <>
+              <NavLink
+                to="/host/dashboard"
+                className={
+                  `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                    activeNav === 'dashboard'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 shadow-md shadow-emerald-500/20'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`
+                }
+              >
+                <Timer className="w-3.5 h-3.5" />
+                <span>Dashboard</span>
+              </NavLink>
 
-          {isHost && (
-            <NavLink
-              to="/host/races"
-              className={({ isActive }) =>
-                `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                  isActive
-                    ? 'bg-slate-800 text-cyan-400 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`
-              }
-            >
-              <History className="w-3.5 h-3.5" />
-              <span>Race History</span>
-            </NavLink>
+              <NavLink
+                to="/host/races"
+                className={
+                  `px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                    activeNav === 'races'
+                      ? 'bg-slate-800 text-cyan-400 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`
+                }
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>Race History</span>
+              </NavLink>
+            </>
           )}
         </nav>
 
@@ -215,18 +225,19 @@ export const Navbar: React.FC = () => {
           {/* Auth State Button */}
           {currentUser ? (
             <div className="flex items-center gap-2">
-              <div className="hidden sm:flex flex-col text-right font-mono text-[11px]">
-                <span className="text-slate-200 font-bold truncate max-w-[130px]">
+              <div className="flex flex-col text-right font-mono text-[11px]">
+                <span className="text-slate-200 font-bold truncate max-w-[110px] sm:max-w-[130px]">
                   {currentUser.displayName || currentUser.email?.split('@')[0]}
                 </span>
                 <span className="text-cyan-400 text-[10px]">Host Active</span>
               </div>
 
+              {/* Desktop-only direct logout button */}
               <button
                 onClick={handleLogout}
                 title="Sign out from Host"
                 aria-label="Sign out"
-                className="p-2 rounded-xl bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-500/40 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-500/40"
+                className="hidden md:flex p-2 rounded-xl bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-500/40 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-500/40"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -246,7 +257,8 @@ export const Navbar: React.FC = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700"
+            className="md:hidden p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+            aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -261,39 +273,61 @@ export const Navbar: React.FC = () => {
           <Link
             to="/home"
             onClick={() => setMobileMenuOpen(false)}
-            className="block py-2.5 px-3 rounded-lg bg-slate-900 text-slate-200"
+            className={`block py-2.5 px-3 rounded-lg transition-all ${
+              activeNav === 'home'
+                ? 'bg-slate-800 text-cyan-400 font-bold border border-cyan-500/40'
+                : 'bg-slate-900 text-slate-200 hover:text-cyan-400'
+            }`}
           >
-            Home Overview
+            Home
           </Link>
           <Link
             to="/join"
             onClick={() => setMobileMenuOpen(false)}
-            className="block py-2.5 px-3 rounded-lg bg-slate-900 text-cyan-400 font-bold"
+            className={`block py-2.5 px-3 rounded-lg transition-all ${
+              activeNav === 'join'
+                ? 'bg-slate-800 text-cyan-400 font-bold border border-cyan-500/40'
+                : 'bg-slate-900 text-cyan-400 font-bold hover:text-cyan-300'
+            }`}
           >
-            Staff Checkpoint Join
+            Join Checkpoint
           </Link>
           <Link
             to="/results"
             onClick={() => setMobileMenuOpen(false)}
-            className="block py-2.5 px-3 rounded-lg bg-slate-900 text-amber-400 font-bold"
+            className={`block py-2.5 px-3 rounded-lg transition-all ${
+              activeNav === 'results'
+                ? 'bg-slate-800 text-cyan-400 font-bold border border-cyan-500/40'
+                : 'bg-slate-900 text-amber-400 font-bold hover:text-amber-300'
+            }`}
           >
-            Public Race Results
+            Race Results
           </Link>
-          <Link
-            to="/host"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2.5 px-3 rounded-lg bg-slate-900 text-emerald-400 font-bold"
-          >
-            Host Controller Dashboard
-          </Link>
-          {isHost && (
-            <Link
-              to="/host/races"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block py-2.5 px-3 rounded-lg bg-slate-900 text-slate-300"
-            >
-              Past Races & Results History
-            </Link>
+          {currentUser && (
+            <>
+              <Link
+                to="/host/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`block py-2.5 px-3 rounded-lg transition-all ${
+                  activeNav === 'dashboard'
+                    ? 'bg-slate-800 text-cyan-400 font-bold border border-cyan-500/40'
+                    : 'bg-slate-900 text-emerald-400 font-bold hover:text-emerald-300'
+                }`}
+              >
+                Dashboard
+              </Link>
+              <Link
+                to="/host/races"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`block py-2.5 px-3 rounded-lg transition-all ${
+                  activeNav === 'races'
+                    ? 'bg-slate-800 text-cyan-400 font-bold border border-cyan-500/40'
+                    : 'bg-slate-900 text-slate-300 hover:text-slate-100'
+                }`}
+              >
+                Race History
+              </Link>
+            </>
           )}
           {!currentUser ? (
             <Link
@@ -313,7 +347,7 @@ export const Navbar: React.FC = () => {
                 setMobileMenuOpen(false);
                 handleLogout();
               }}
-              className="w-full text-left py-2.5 px-3 rounded-lg bg-rose-950/30 border border-rose-500/30 text-rose-300 font-bold flex items-center justify-between cursor-pointer"
+              className="w-full text-left py-2.5 px-3 rounded-lg bg-rose-950/30 border border-rose-500/30 text-rose-300 font-bold flex items-center justify-between cursor-pointer hover:bg-rose-950/50 transition-colors"
             >
               <div className="flex items-center gap-2">
                 <LogOut className="w-4 h-4 text-rose-400" />
@@ -349,16 +383,10 @@ export const Navbar: React.FC = () => {
             ))}
           </nav>
 
-          <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-500">
-            <span>URL:</span>
-            <code className="bg-slate-900 px-2 py-0.5 rounded text-cyan-300/80 border border-slate-800">
-              {location.pathname}
-            </code>
-          </div>
-
         </div>
       </div>
 
     </header>
   );
 };
+

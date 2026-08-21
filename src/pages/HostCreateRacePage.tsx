@@ -142,11 +142,11 @@ export const HostCreateRacePage: React.FC = () => {
       {/* Back to Host Dashboard link */}
       <div className="mb-6">
         <Link
-          to="/host"
+          to="/host/dashboard"
           className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 hover:text-cyan-300 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Host Controller</span>
+          <span>Back to Dashboard</span>
         </Link>
       </div>
 
@@ -353,7 +353,7 @@ export const HostCreateRacePage: React.FC = () => {
           <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-800">
             <button
               type="button"
-              onClick={() => navigate('/host')}
+              onClick={() => navigate('/host/dashboard')}
               className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 font-mono text-xs font-bold transition-colors cursor-pointer"
             >
               Cancel

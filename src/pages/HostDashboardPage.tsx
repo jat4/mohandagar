@@ -71,7 +71,7 @@ export const HostDashboardPage: React.FC = () => {
             className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
           >
             <History className="w-4 h-4 text-cyan-400" />
-            <span>All Races ({hostRaces.length})</span>
+            <span>Race History ({hostRaces.length})</span>
           </Link>
 
           <Link
