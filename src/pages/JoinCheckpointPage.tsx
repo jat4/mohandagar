@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { RaceService } from '../services/raceService';
 import { Race, Checkpoint, normalizeCheckpointType } from '../types/race';
@@ -23,15 +23,56 @@ import {
   Activity,
   ShieldCheck,
   Flag,
-  Zap
+  Zap,
+  RotateCcw
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+
+/**
+ * Extracts normalized join code from raw QR text, URLs, hash routes, or query params
+ */
+function extractJoinCode(rawInput: string): string {
+  if (!rawInput) return '';
+  const text = rawInput.trim();
+
+  // Pattern 1: URL with query parameter ?code=... or ?join=...
+  if (text.includes('?')) {
+    try {
+      const urlObj = new URL(text.startsWith('http') ? text : `https://mohandagar.in/${text.replace(/^#/, '')}`);
+      const codeParam = urlObj.searchParams.get('code') || urlObj.searchParams.get('join');
+      if (codeParam) {
+        return codeParam.trim().toUpperCase();
+      }
+    } catch {
+      const match = text.match(/[?&](?:code|join)=([^&#]+)/i);
+      if (match && match[1]) {
+        return decodeURIComponent(match[1]).trim().toUpperCase();
+      }
+    }
+  }
+
+  // Pattern 2: URL with /join/{code} or #/join/{code}
+  if (text.includes('/join/')) {
+    const parts = text.split('/join/')[1];
+    if (parts) {
+      const candidate = parts.split(/[?#/&]/)[0];
+      if (candidate) {
+        return candidate.trim().toUpperCase();
+      }
+    }
+  }
+
+  // Pattern 3: Clean alphanumeric + hyphens
+  const cleaned = text.replace(/[^A-Z0-9-]/gi, '').toUpperCase();
+  return cleaned;
+}
 
 export const JoinCheckpointPage: React.FC = () => {
   const { code: routeCode } = useParams<{ code?: string }>();
   const [searchParams] = useSearchParams();
   const queryCode = searchParams.get('code') || searchParams.get('join') || '';
-  const initialCode = (routeCode || queryCode || '').trim().toUpperCase();
+  const initialRaw = routeCode || queryCode || '';
+  const initialCode = extractJoinCode(initialRaw);
 
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -43,6 +84,7 @@ export const JoinCheckpointPage: React.FC = () => {
   const [joinCode, setJoinCode] = useState(initialCode);
   const [loading, setLoading] = useState(false);
   const [resolvingCode, setResolvingCode] = useState(Boolean(initialCode));
+  const [joining, setJoining] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Stored staff identity
@@ -59,18 +101,20 @@ export const JoinCheckpointPage: React.FC = () => {
 
   const [resolvedRace, setResolvedRace] = useState<Race | null>(null);
   const [resolvedCheckpoint, setResolvedCheckpoint] = useState<Checkpoint | null>(null);
-  const [needsFirstTimeSetup, setNeedsFirstTimeSetup] = useState(false);
 
-  // Auto-join pipeline for QR code or route code
+  // If page loads with a join code in route/query param, resolve it
   useEffect(() => {
     if (initialCode) {
       setJoinCode(initialCode);
-      executeAutoJoin(initialCode);
+      resolveCheckpointDetails(initialCode);
     }
   }, [initialCode]);
 
-  const executeAutoJoin = async (codeToLookup: string) => {
-    const cleanCode = codeToLookup.trim().toUpperCase();
+  /**
+   * Resolve Join Code to Race & Checkpoint from Firebase without auto-joining
+   */
+  const resolveCheckpointDetails = async (rawCodeToLookup: string) => {
+    const cleanCode = extractJoinCode(rawCodeToLookup);
     if (!cleanCode) return;
 
     setResolvingCode(true);
@@ -81,7 +125,9 @@ export const JoinCheckpointPage: React.FC = () => {
       // 1. Resolve Join Code mapping from Firestore
       const mapping = await RaceService.resolveJoinCode(cleanCode);
       if (!mapping || !mapping.active) {
-        setErrorMessage('Checkpoint QR is invalid or expired.');
+        setErrorMessage('Invalid or expired checkpoint QR.');
+        setResolvedRace(null);
+        setResolvedCheckpoint(null);
         setResolvingCode(false);
         setLoading(false);
         return;
@@ -90,7 +136,9 @@ export const JoinCheckpointPage: React.FC = () => {
       // 2. Fetch authoritative Race
       const race = await RaceService.getRace(mapping.raceId);
       if (!race) {
-        setErrorMessage('Checkpoint QR is invalid or expired.');
+        setErrorMessage('Invalid or expired checkpoint QR.');
+        setResolvedRace(null);
+        setResolvedCheckpoint(null);
         setResolvingCode(false);
         setLoading(false);
         return;
@@ -99,218 +147,292 @@ export const JoinCheckpointPage: React.FC = () => {
       // 3. Locate Checkpoint
       const checkpoint = race.checkpoints?.find((c) => c.id === mapping.checkpointId);
       if (!checkpoint) {
-        setErrorMessage('Checkpoint QR is invalid or expired.');
+        setErrorMessage('Invalid or expired checkpoint QR.');
+        setResolvedRace(null);
+        setResolvedCheckpoint(null);
         setResolvingCode(false);
         setLoading(false);
         return;
       }
 
+      // Successfully resolved race & checkpoint!
       setResolvedRace(race);
       setResolvedCheckpoint(checkpoint);
+      setJoinCode(checkpoint.joinCode || cleanCode);
 
-      // 4. Check if staff identity is available (stored in localStorage or assigned on checkpoint)
-      const existingStoredStaff = localStorage.getItem('stopwatch_staff_name');
-      const assignedStaff = checkpoint.assignedStaffName?.trim();
-      const resolvedStaffName = existingStoredStaff || assignedStaff || '';
-
-      if (resolvedStaffName) {
-        // Staff identity is known -> complete auto-join immediately!
-        const finalDeviceName = deviceName.trim() || 'Staff Phone';
-        localStorage.setItem('stopwatch_staff_name', resolvedStaffName);
-        localStorage.setItem('stopwatch_device_name', finalDeviceName);
-        localStorage.setItem(`checkpoint_session_${checkpoint.id}`, JSON.stringify({
-          raceId: race.id,
-          checkpointId: checkpoint.id,
-          joinCode: cleanCode,
-          staffName: resolvedStaffName,
-          deviceName: finalDeviceName
-        }));
-
-        // Register heartbeat session
-        const sessionKey = `checkpoint_staff_session_${checkpoint.id}`;
-        const savedSessionId = localStorage.getItem(sessionKey) || `session_${checkpoint.id}_${Date.now()}`;
-        localStorage.setItem(sessionKey, savedSessionId);
-
-        RaceService.updateStaffHeartbeat(race.id, savedSessionId, {
-          id: savedSessionId,
-          raceId: race.id,
-          checkpointId: checkpoint.id,
-          checkpointName: checkpoint.name,
-          checkpointDistanceMeters: checkpoint.distanceMeters,
-          staffName: resolvedStaffName,
-          deviceName: finalDeviceName,
-          status: 'ONLINE'
-        }).catch((e) => console.warn('Heartbeat registration notice:', e));
-
-        // Direct navigation to checkpoint live timing screen
-        navigate(`/checkpoint/${checkpoint.id}?raceId=${race.id}`, { replace: true });
-      } else {
-        // First-time setup required: prompt once for staff name & device label
+      if (checkpoint.assignedStaffName && !staffName.trim()) {
+        setStaffName(checkpoint.assignedStaffName);
+      } else if (!staffName.trim()) {
         setStaffName('Volunteer Staff');
-        setNeedsFirstTimeSetup(true);
-        setResolvingCode(false);
       }
+
+      setResolvingCode(false);
     } catch (err: any) {
-      console.error('Auto join execution error:', err);
-      setErrorMessage(err.message || 'Checkpoint QR is invalid or expired.');
+      console.error('Resolve checkpoint error:', err);
+      setErrorMessage(err.message || 'Invalid or expired checkpoint QR.');
+      setResolvedRace(null);
+      setResolvedCheckpoint(null);
       setResolvingCode(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQrScanned = (scannedText: string) => {
-    let cleanCode = scannedText.trim();
-    if (cleanCode.includes('/join/')) {
-      cleanCode = cleanCode.split('/join/')[1].split('?')[0].split('/')[0];
-    } else if (cleanCode.includes('code=')) {
-      cleanCode = new URL(cleanCode).searchParams.get('code') || cleanCode;
+  /**
+   * Handle QR scan event
+   */
+  const handleQrScanned = (scannedData: string) => {
+    const cleanCode = extractJoinCode(scannedData);
+    if (!cleanCode) {
+      setErrorMessage('Invalid or expired checkpoint QR.');
+      return;
     }
-    cleanCode = cleanCode.replace(/[^A-Z0-9-]/gi, '').toUpperCase();
     setJoinCode(cleanCode);
-    setJoinMethod('MANUAL');
-    executeAutoJoin(cleanCode);
+    resolveCheckpointDetails(cleanCode);
   };
 
-  const handleFirstTimeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  /**
+   * Confirm and Join Checkpoint -> Opens checkpoint timing screen
+   */
+  const handleJoinCheckpoint = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!resolvedCheckpoint || !resolvedRace) {
-      setErrorMessage('Checkpoint QR is invalid or expired.');
+      setErrorMessage('Invalid or expired checkpoint QR.');
       return;
     }
 
-    const finalStaffName = staffName.trim() || 'Volunteer Staff';
-    const finalDeviceName = deviceName.trim() || 'Staff Phone';
+    setJoining(true);
 
-    // Store for all future QR scans
-    localStorage.setItem('stopwatch_staff_name', finalStaffName);
-    localStorage.setItem('stopwatch_device_name', finalDeviceName);
-    localStorage.setItem(`checkpoint_session_${resolvedCheckpoint.id}`, JSON.stringify({
-      raceId: resolvedRace.id,
-      checkpointId: resolvedCheckpoint.id,
-      joinCode: joinCode.trim(),
-      staffName: finalStaffName,
-      deviceName: finalDeviceName
-    }));
+    try {
+      const finalStaffName = staffName.trim() || resolvedCheckpoint.assignedStaffName || 'Volunteer Staff';
+      const finalDeviceName = deviceName.trim() || 'Mobile Device';
 
-    const sessionKey = `checkpoint_staff_session_${resolvedCheckpoint.id}`;
-    const savedSessionId = localStorage.getItem(sessionKey) || `session_${resolvedCheckpoint.id}_${Date.now()}`;
-    localStorage.setItem(sessionKey, savedSessionId);
+      // Save to localStorage for session persistence
+      localStorage.setItem('stopwatch_staff_name', finalStaffName);
+      localStorage.setItem('stopwatch_device_name', finalDeviceName);
+      localStorage.setItem(`checkpoint_session_${resolvedCheckpoint.id}`, JSON.stringify({
+        raceId: resolvedRace.id,
+        checkpointId: resolvedCheckpoint.id,
+        joinCode: joinCode.trim(),
+        staffName: finalStaffName,
+        deviceName: finalDeviceName
+      }));
 
-    RaceService.updateStaffHeartbeat(resolvedRace.id, savedSessionId, {
-      id: savedSessionId,
-      raceId: resolvedRace.id,
-      checkpointId: resolvedCheckpoint.id,
-      checkpointName: resolvedCheckpoint.name,
-      checkpointDistanceMeters: resolvedCheckpoint.distanceMeters,
-      staffName: finalStaffName,
-      deviceName: finalDeviceName,
-      status: 'ONLINE'
-    }).catch((e) => console.warn('Heartbeat registration notice:', e));
+      // Register staff session heartbeat
+      const sessionKey = `checkpoint_staff_session_${resolvedCheckpoint.id}`;
+      const savedSessionId = localStorage.getItem(sessionKey) || `session_${resolvedCheckpoint.id}_${Date.now()}`;
+      localStorage.setItem(sessionKey, savedSessionId);
 
-    showToast({
-      type: 'success',
-      title: 'Checkpoint Connected',
-      message: `Connected to ${resolvedCheckpoint.name} (${resolvedRace.name})`
-    });
+      await RaceService.updateStaffHeartbeat(resolvedRace.id, savedSessionId, {
+        id: savedSessionId,
+        raceId: resolvedRace.id,
+        checkpointId: resolvedCheckpoint.id,
+        checkpointName: resolvedCheckpoint.name,
+        checkpointDistanceMeters: resolvedCheckpoint.distanceMeters,
+        staffName: finalStaffName,
+        deviceName: finalDeviceName,
+        status: 'ONLINE'
+      }).catch((err) => console.warn('Heartbeat update notice:', err));
 
-    navigate(`/checkpoint/${resolvedCheckpoint.id}?raceId=${resolvedRace.id}`, { replace: true });
+      showToast({
+        type: 'success',
+        title: 'Checkpoint Connected',
+        message: `Connected to ${resolvedCheckpoint.name} (${resolvedRace.name})`
+      });
+
+      // Navigate to checkpoint timing screen (No full page reload)
+      navigate(`/checkpoint/${resolvedCheckpoint.id}?raceId=${resolvedRace.id}`, { replace: true });
+    } catch (err: any) {
+      console.error('Join checkpoint error:', err);
+      setErrorMessage(err.message || 'Unable to connect to checkpoint.');
+      setJoining(false);
+    }
   };
 
-  // 1. Loading/Resolving state when QR is scanned
-  if (resolvingCode && !errorMessage && !needsFirstTimeSetup) {
+  /**
+   * Reset view to scan again or enter code
+   */
+  const handleReset = () => {
+    setResolvedRace(null);
+    setResolvedCheckpoint(null);
+    setJoinCode('');
+    setErrorMessage(null);
+    setResolvingCode(false);
+  };
+
+  // 1. Loading/Resolving state during Firebase lookup
+  if (resolvingCode && !errorMessage && !resolvedCheckpoint) {
     return (
       <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-slate-100 font-mono gap-4 animate-fadeIn">
         <div className="w-14 h-14 rounded-2xl bg-cyan-950 border border-cyan-500/40 p-3 shadow-xl shadow-cyan-500/10 flex items-center justify-center">
           <Activity className="w-7 h-7 text-cyan-400 animate-spin" />
         </div>
         <div className="text-center space-y-1">
-          <h2 className="text-lg font-bold text-slate-100">Connecting to Checkpoint...</h2>
-          <p className="text-xs text-slate-400">Resolving QR Code: <span className="text-cyan-300 font-bold">{initialCode || joinCode}</span></p>
+          <h2 className="text-lg font-bold text-slate-100">Resolving Checkpoint...</h2>
+          <p className="text-xs text-slate-400">Verifying join code with race database</p>
         </div>
       </div>
     );
   }
 
-  // 2. First-time setup modal if staff identity is completely new on this device
-  if (needsFirstTimeSetup && resolvedCheckpoint && resolvedRace) {
+  // 2. Resolved Checkpoint View: Displays Race + Checkpoint details & [ JOIN CHECKPOINT ] button
+  if (resolvedCheckpoint && resolvedRace) {
     const normType = normalizeCheckpointType(resolvedCheckpoint.type);
     const isFinishOnly = normType === 'finish';
     const isSplitFinish = normType === 'splitFinish';
 
+    let typeDisplayName = 'Split (Split Only)';
+    let typeAuthorityHint = 'Authority: Record runner splits';
+    let typeBadgeClass = 'bg-cyan-950 text-cyan-300 border-cyan-500/40';
+
+    if (isFinishOnly) {
+      typeDisplayName = 'Finish Line (Finish Only)';
+      typeAuthorityHint = 'Authority: Official race finish line';
+      typeBadgeClass = 'bg-rose-950 text-rose-300 border-rose-500/40';
+    } else if (isSplitFinish) {
+      typeDisplayName = 'Split Gate (Split & Finish)';
+      typeAuthorityHint = 'Authority: Record splits and trigger finish';
+      typeBadgeClass = 'bg-emerald-950 text-emerald-300 border-emerald-500/40';
+    }
+
     return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 sm:p-6 animate-fadeIn">
+      <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 sm:p-6 animate-fadeIn">
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5">
+          
+          {/* Header Badge */}
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-2xl bg-cyan-950 border border-cyan-500/30 mx-auto flex items-center justify-center">
-              <QrCode className="w-6 h-6 text-cyan-400" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-xs font-mono font-bold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>✓ QR CODE DETECTED</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
-              Checkpoint Setup
+              Checkpoint Information
             </h1>
             <p className="text-xs font-mono text-slate-400">
-              One-time setup for this device. Future scans will connect automatically.
+              Verified with live race database
             </p>
           </div>
 
-          {/* Checkpoint Badge Card */}
-          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-left space-y-1.5">
-            <div className="flex items-center justify-between text-xs font-mono">
-              <span className={`font-bold ${isFinishOnly ? 'text-rose-400' : isSplitFinish ? 'text-emerald-400' : 'text-cyan-400'}`}>
-                {isFinishOnly ? '🏁 FINISH LINE' : isSplitFinish ? '⚡ SPLIT GATE' : '⚡ SPLIT ONLY'}
+          {/* Structured Race & Checkpoint Details Card */}
+          <div className="rounded-2xl bg-slate-950 border border-slate-800/90 overflow-hidden divide-y divide-slate-800/60 font-mono text-xs">
+            
+            {/* Race Name */}
+            <div className="p-3.5 flex items-center justify-between gap-2">
+              <span className="text-slate-400 shrink-0 font-medium">Race Name:</span>
+              <span className="text-slate-100 font-bold text-sm text-right truncate">
+                {resolvedRace.name}
               </span>
-              <span className="text-slate-500">Code: #{resolvedCheckpoint.joinCode}</span>
             </div>
-            <h2 className="text-base sm:text-lg font-bold text-slate-100">
-              {resolvedCheckpoint.name} ({formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace.displayUnit)})
-            </h2>
-            <div className="text-xs font-mono text-slate-400">
-              Race: <span className="text-slate-200">{resolvedRace.name}</span> • Runner: <span className="text-cyan-300 font-bold">{resolvedRace.runnerName}</span>
+
+            {/* Runner */}
+            <div className="p-3.5 flex items-center justify-between gap-2">
+              <span className="text-slate-400 shrink-0 font-medium">Runner:</span>
+              <span className="text-cyan-300 font-bold text-sm text-right truncate">
+                {resolvedRace.runnerName}
+              </span>
             </div>
+
+            {/* Checkpoint */}
+            <div className="p-3.5 flex items-center justify-between gap-2">
+              <span className="text-slate-400 shrink-0 font-medium">Checkpoint:</span>
+              <span className="text-slate-100 font-bold text-sm text-right truncate">
+                {resolvedCheckpoint.name}
+              </span>
+            </div>
+
+            {/* Distance */}
+            <div className="p-3.5 flex items-center justify-between gap-2">
+              <span className="text-slate-400 shrink-0 font-medium">Distance:</span>
+              <span className="text-slate-200 font-bold text-sm text-right">
+                {formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace.displayUnit)}
+              </span>
+            </div>
+
+            {/* Type */}
+            <div className="p-3.5 flex items-center justify-between gap-2">
+              <span className="text-slate-400 shrink-0 font-medium">Type:</span>
+              <div className="text-right">
+                <span className={`inline-block px-2.5 py-0.5 rounded-md border text-[11px] font-bold ${typeBadgeClass}`}>
+                  {typeDisplayName}
+                </span>
+                <span className="block text-[10px] text-slate-500 mt-0.5">
+                  {typeAuthorityHint}
+                </span>
+              </div>
+            </div>
+
           </div>
 
-          <form onSubmit={handleFirstTimeSubmit} className="space-y-4 text-left">
-            <div>
-              <label className="block text-xs font-mono text-slate-300 mb-1.5">
-                Staff Name *
-              </label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  required
-                  value={staffName}
-                  onChange={(e) => setStaffName(e.target.value)}
-                  placeholder="e.g. Volunteer 1"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
-                />
+          {/* Optional Staff Identification Inputs */}
+          <form onSubmit={handleJoinCheckpoint} className="space-y-4">
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="block text-xs font-mono text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span>Staff Name</span>
+                  <span className="text-[10px] text-slate-500">Displays on host race board</span>
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={staffName}
+                    onChange={(e) => setStaffName(e.target.value)}
+                    placeholder="e.g. Volunteer Staff"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span>Device Name</span>
+                  <span className="text-[10px] text-slate-500">Device label</span>
+                </label>
+                <div className="relative">
+                  <Smartphone className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={deviceName}
+                    onChange={(e) => setDeviceName(e.target.value)}
+                    placeholder="e.g. Staff Phone"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-mono text-slate-300 mb-1.5">
-                Device Name
-              </label>
-              <div className="relative">
-                <Smartphone className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={deviceName}
-                  onChange={(e) => setDeviceName(e.target.value)}
-                  placeholder="e.g. iPhone 15"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-            </div>
-
+            {/* Primary Action Button: JOIN CHECKPOINT */}
             <button
               type="submit"
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer mt-2"
+              disabled={joining}
+              className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black font-mono text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-xl shadow-cyan-500/25 transition-all cursor-pointer disabled:opacity-60 active:scale-[0.99] tracking-wider"
             >
-              <ShieldCheck className="w-4 h-4" />
-              <span>JOIN CHECKPOINT</span>
+              {joining ? (
+                <>
+                  <Activity className="w-5 h-5 animate-spin text-slate-950" />
+                  <span>CONNECTING...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-5 h-5" />
+                  <span>JOIN CHECKPOINT</span>
+                </>
+              )}
             </button>
           </form>
+
+          {/* Reset / Scan Another Button */}
+          <div className="pt-2 text-center">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Scan another QR or enter different code</span>
+            </button>
+          </div>
+
         </div>
       </div>
     );
@@ -318,7 +440,7 @@ export const JoinCheckpointPage: React.FC = () => {
 
   // 3. Default QR Scanner / Manual Join Screen
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 sm:p-6 animate-fadeIn">
+    <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 sm:p-6 animate-fadeIn">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative">
         
         <Link
@@ -387,7 +509,7 @@ export const JoinCheckpointPage: React.FC = () => {
         {/* QR Scanner Mode */}
         {joinMethod === 'QR' && (
           <div className="space-y-4">
-            <CameraQrScanner onScan={handleQrScanned} />
+            <CameraQrScanner onScanSuccess={handleQrScanned} onScan={handleQrScanned} />
             <p className="text-[11px] font-mono text-center text-slate-500">
               Point camera at the QR code displayed on the Host dashboard
             </p>
@@ -400,7 +522,7 @@ export const JoinCheckpointPage: React.FC = () => {
             onSubmit={(e) => {
               e.preventDefault();
               if (joinCode.trim()) {
-                executeAutoJoin(joinCode.trim().toUpperCase());
+                resolveCheckpointDetails(joinCode.trim());
               }
             }}
             className="space-y-4 text-left"
@@ -417,7 +539,7 @@ export const JoinCheckpointPage: React.FC = () => {
                   required
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                  placeholder="e.g. 8K4P29 or 8K4P-29"
+                  placeholder="e.g. 8K4P-29"
                   className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-base tracking-wider uppercase text-cyan-300 placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-bold"
                 />
               </div>
@@ -431,11 +553,11 @@ export const JoinCheckpointPage: React.FC = () => {
               {loading ? (
                 <>
                   <Activity className="w-4 h-4 animate-spin" />
-                  <span>Connecting to Checkpoint...</span>
+                  <span>Resolving Checkpoint...</span>
                 </>
               ) : (
                 <>
-                  <span>CONNECT CHECKPOINT</span>
+                  <span>LOOKUP CHECKPOINT</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

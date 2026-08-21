@@ -8,12 +8,14 @@ import jsQR from 'jsqr';
 import { Camera, RefreshCw, AlertCircle, CheckCircle2, SwitchCamera, Zap } from 'lucide-react';
 
 interface CameraQrScannerProps {
-  onScanSuccess: (scannedData: string) => void;
+  onScanSuccess?: (scannedData: string) => void;
+  onScan?: (scannedData: string) => void;
   onClose?: () => void;
 }
 
 export const CameraQrScanner: React.FC<CameraQrScannerProps> = ({
   onScanSuccess,
+  onScan,
   onClose
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -25,7 +27,7 @@ export const CameraQrScanner: React.FC<CameraQrScannerProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isScanning, setIsScanning] = useState(true);
-  const [detectedCode, setDetectedCode] = useState<string | null>(null);
+  const [detected, setDetected] = useState(false);
 
   const stopCamera = useCallback(() => {
     if (animFrameRef.current) {
@@ -41,7 +43,7 @@ export const CameraQrScanner: React.FC<CameraQrScannerProps> = ({
   const startCamera = useCallback(async () => {
     stopCamera();
     setErrorMessage(null);
-    setDetectedCode(null);
+    setDetected(false);
 
     try {
       const constraints: MediaStreamConstraints = {
@@ -96,26 +98,19 @@ export const CameraQrScanner: React.FC<CameraQrScannerProps> = ({
 
           if (qrCode && qrCode.data) {
             const rawData = qrCode.data.trim();
-            setDetectedCode(rawData);
+            setDetected(true);
             setIsScanning(false);
 
             // Optional haptic vibration
             if (navigator.vibrate) {
-              navigator.vibrate(80);
-            }
-
-            // Extract code if it's a URL
-            let extractedCode = rawData;
-            if (rawData.includes('#/join/')) {
-              const parts = rawData.split('#/join/');
-              extractedCode = parts[1]?.split('?')[0]?.split('/')[0] || rawData;
-            } else if (rawData.includes('code=')) {
-              const urlParams = new URLSearchParams(rawData.split('?')[1] || '');
-              extractedCode = urlParams.get('code') || rawData;
+              try {
+                navigator.vibrate(80);
+              } catch {}
             }
 
             stopCamera();
-            onScanSuccess(extractedCode);
+            if (onScanSuccess) onScanSuccess(rawData);
+            if (onScan) onScan(rawData);
             return;
           }
         }
@@ -172,14 +167,12 @@ export const CameraQrScanner: React.FC<CameraQrScannerProps> = ({
           </div>
         )}
 
-        {/* QR Detected Confirmation */}
-        {detectedCode && (
-          <div className="absolute inset-0 bg-emerald-950/90 flex flex-col items-center justify-center p-4 text-center animate-fadeIn">
-            <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-2 animate-pulse" />
-            <div className="text-sm font-bold text-slate-100 font-mono">QR Code Detected!</div>
-            <div className="text-xs text-emerald-300 font-mono mt-1 break-all bg-emerald-900/60 px-3 py-1 rounded-lg border border-emerald-500/40">
-              {detectedCode}
-            </div>
+        {/* QR Detected Confirmation - No raw URL display */}
+        {detected && (
+          <div className="absolute inset-0 bg-emerald-950/95 flex flex-col items-center justify-center p-4 text-center animate-fadeIn z-20">
+            <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-2 animate-bounce" />
+            <div className="text-sm font-bold text-slate-100 font-mono tracking-wide">✓ QR CODE DETECTED</div>
+            <div className="text-xs text-emerald-300/80 font-mono mt-1">Resolving Checkpoint...</div>
           </div>
         )}
 
