@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RaceService } from '../../services/raceService';
+import { auth } from '../../lib/firebase';
 import { Race, Checkpoint, TimingEvent, normalizeCheckpointType } from '../../types/race';
 import { formatDistance } from '../../utils/raceCalculations';
 import { CheckpointStaffScreen } from './CheckpointStaffScreen';
@@ -148,6 +149,34 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
       const checkpoint = race.checkpoints.find((c) => c.id === mapping.checkpointId);
       if (!checkpoint) {
         setErrorMessage('Checkpoint QR is invalid or expired.');
+        setLoading(false);
+        return;
+      }
+
+      // Check if checkpoint is already occupied by another staff member / device
+      const currentAssignedName = checkpoint.assignedStaffName?.trim();
+      const currentAssignedUid = checkpoint.assignedStaffUid?.trim();
+      const currentUserName = staffName.trim() || localStorage.getItem('stopwatch_staff_name')?.trim();
+      const currentUid = auth.currentUser?.uid;
+
+      const isSameUser = Boolean(
+        (currentUid && currentAssignedUid && currentUid === currentAssignedUid) ||
+        (currentUserName && currentAssignedName && currentUserName.toLowerCase() === currentAssignedName.toLowerCase()) ||
+        (checkpoint.isHostAssigned && currentUid === race.hostUid)
+      );
+
+      if (checkpoint.isHostAssigned && !isSameUser) {
+        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${checkpoint.assignedStaffName || 'Host'}. You cannot join this checkpoint until the current staff member leaves.`);
+        setResolvedRace(null);
+        setResolvedCheckpoint(null);
+        setLoading(false);
+        return;
+      }
+
+      if (currentAssignedName && currentAssignedName !== '' && !isSameUser) {
+        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${currentAssignedName}. You cannot join this checkpoint until the current staff member leaves.`);
+        setResolvedRace(null);
+        setResolvedCheckpoint(null);
         setLoading(false);
         return;
       }

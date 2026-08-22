@@ -396,7 +396,7 @@ export class RaceService {
           const isSameHost = (currentAssignedUid === uid) || currentAssignedName.includes('(Host)');
           if (!isSameHost) {
             throw new Error(
-              `Checkpoint already assigned. This checkpoint is already occupied by ${currentAssignedName}.`
+              `${targetCp.name} is currently assigned to ${currentAssignedName}. You cannot assign yourself to this checkpoint until the current staff member leaves.`
             );
           }
         }
@@ -461,10 +461,10 @@ export class RaceService {
   /**
    * Unassign Host from current checkpoint
    */
-  static async unassignHostFromCheckpoint(raceId: string, hostUid?: string): Promise<void> {
+  static async unassignHostFromCheckpoint(raceId: string, checkpointId?: string, hostUid?: string): Promise<void> {
     const user = auth.currentUser;
     const uid = hostUid || user?.uid || 'host';
-    const now = TimeSyncService.now();
+    const now = TimeSyncService.now() || Date.now();
 
     try {
       await runTransaction(db, async (transaction) => {
@@ -474,7 +474,7 @@ export class RaceService {
 
         const race = raceSnap.data() as Race;
         const updatedCheckpoints = (race.checkpoints || []).map((cp) => {
-          if (cp.isHostAssigned || cp.assignedStaffUid === uid) {
+          if ((checkpointId && cp.id === checkpointId) || (!checkpointId && (cp.isHostAssigned || cp.assignedStaffUid === uid))) {
             return {
               ...cp,
               isHostAssigned: false,
@@ -502,6 +502,118 @@ export class RaceService {
   }
 
   /**
+   * Leave / Release Checkpoint by the active assigned staff member or host.
+   * Enforces ownership validation atomically and preserves all historical timing events & splits.
+   */
+  static async leaveCheckpoint(params: {
+    raceId: string;
+    checkpointId: string;
+    staffName?: string;
+    staffUid?: string;
+    isHost?: boolean;
+  }): Promise<void> {
+    const user = auth.currentUser;
+    const callerUid = params.staffUid || user?.uid || '';
+    const callerName = params.staffName?.trim() || '';
+    const now = TimeSyncService.now() || Date.now();
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const raceRef = doc(db, 'races', params.raceId);
+        const raceSnap = await transaction.get(raceRef);
+
+        if (!raceSnap.exists()) {
+          throw new Error('Race not found.');
+        }
+
+        const race = raceSnap.data() as Race;
+        const checkpoints = race.checkpoints || [];
+        const targetCp = checkpoints.find((c) => c.id === params.checkpointId);
+
+        if (!targetCp) {
+          throw new Error('Checkpoint not found in this race.');
+        }
+
+        const isCallerHost = Boolean(
+          params.isHost ||
+          (callerUid && callerUid === race.hostUid) ||
+          (user && user.uid === race.hostUid)
+        );
+
+        const currentStaffName = targetCp.assignedStaffName?.trim() || '';
+        const currentStaffUid = targetCp.assignedStaffUid?.trim() || '';
+
+        // If not assigned to anyone, it is already released
+        if (!currentStaffName && !targetCp.isHostAssigned) {
+          return;
+        }
+
+        // Verify ownership: Only the assigned staff member or Host can release their own assignment
+        if (targetCp.isHostAssigned) {
+          const isHostOwner = isCallerHost || (callerUid && currentStaffUid === callerUid) || callerName.includes('(Host)');
+          if (!isHostOwner) {
+            throw new Error(`You cannot leave a checkpoint assigned to the Host.`);
+          }
+        } else {
+          const isStaffOwner = Boolean(
+            (callerUid && currentStaffUid && callerUid === currentStaffUid) ||
+            (callerName && currentStaffName && callerName.toLowerCase() === currentStaffName.toLowerCase()) ||
+            (isCallerHost && (currentStaffUid === callerUid || currentStaffName.includes('(Host)')))
+          );
+
+          if (!isStaffOwner) {
+            throw new Error(`You cannot leave this checkpoint because it is assigned to ${currentStaffName}. Only ${currentStaffName} can release this assignment.`);
+          }
+        }
+
+        // Atomically update checkpoint assignment to vacant/available
+        const updatedCheckpoints = checkpoints.map((cp) => {
+          if (cp.id === params.checkpointId) {
+            return {
+              ...cp,
+              assignedStaffName: '',
+              assignedStaffUid: '',
+              assignedDeviceName: '',
+              isHostAssigned: false
+            };
+          }
+          return cp;
+        });
+
+        const updatePayload: any = {
+          checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
+          updatedAt: now
+        };
+
+        if (race.hostAssignedCheckpointId === params.checkpointId) {
+          updatePayload.hostAssignedCheckpointId = null;
+        }
+
+        transaction.update(raceRef, updatePayload);
+      });
+
+      // Cleanup associated staff session docs for this checkpoint in Firestore
+      try {
+        const q = query(
+          collection(db, 'races', params.raceId, 'staffSessions'),
+          where('checkpointId', '==', params.checkpointId)
+        );
+        const snaps = await getDocs(q);
+        const delPromises = snaps.docs.map((d) => deleteDoc(d.ref));
+        await Promise.all(delPromises);
+      } catch (sessErr) {
+        console.warn('Session cleanup note:', sessErr);
+      }
+    } catch (error: any) {
+      if (error?.message && error.message.includes('cannot leave')) {
+        throw error;
+      }
+      handleFirestoreError(error, OperationType.UPDATE, `races/${params.raceId}`);
+      throw error;
+    }
+  }
+
+  /**
    * Claim Checkpoint by a staff volunteer (ensuring exactly 1 active device per checkpoint).
    * Atomically protects against concurrent join race conditions via Firestore runTransaction.
    */
@@ -512,7 +624,7 @@ export class RaceService {
     deviceName?: string;
     staffUid?: string;
   }): Promise<Checkpoint> {
-    const now = TimeSyncService.now();
+    const now = TimeSyncService.now() || Date.now();
     const claimantName = params.staffName.trim();
     const claimantUid = params.staffUid || auth.currentUser?.uid || '';
     const claimantDevice = params.deviceName?.trim() || 'Staff Phone';
@@ -546,7 +658,7 @@ export class RaceService {
         // 1. Check if locked/assigned by Host
         if (targetCp.isHostAssigned && !isClaimantHost) {
           throw new Error(
-            `Checkpoint already assigned. This checkpoint has been assigned to Host (${targetCp.assignedStaffName || 'Host'}).`
+            `Checkpoint ${targetCp.name} is currently assigned to ${targetCp.assignedStaffName || 'Host'}. You cannot join this checkpoint until the current staff member leaves.`
           );
         }
 
@@ -563,7 +675,7 @@ export class RaceService {
 
           if (!isSameUser && !isClaimantHost) {
             throw new Error(
-              `Checkpoint already assigned. This checkpoint is already occupied by ${currentStaffName}.`
+              `Checkpoint ${targetCp.name} is currently assigned to ${currentStaffName}. You cannot join this checkpoint until the current staff member leaves.`
             );
           }
         }

@@ -41,7 +41,8 @@ import {
   RefreshCw,
   AlertTriangle,
   StopCircle,
-  Trophy
+  Trophy,
+  LogOut
 } from 'lucide-react';
 
 interface CheckpointStaffScreenProps {
@@ -71,6 +72,8 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   const [syncStatus, setSyncStatus] = useState<'SAVED' | 'SYNCING' | 'FAILED' | 'READY'>('READY');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [pendingFinish, setPendingFinish] = useState<{
     capturedTimestamp: number;
     capturedElapsedMs: number;
@@ -90,6 +93,44 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
     localStorage.setItem(key, generated);
     return generated;
   }).current();
+
+  // Check if current user is the actively assigned staff member or host
+  const isCurrentAssignedStaff = Boolean(
+    checkpoint.assignedStaffName && (
+      (staffName.trim() && checkpoint.assignedStaffName.trim().toLowerCase() === staffName.trim().toLowerCase()) ||
+      (checkpoint.isHostAssigned && isHost)
+    )
+  );
+
+  const handleLeaveCheckpoint = async () => {
+    setLeaving(true);
+    try {
+      await RaceService.leaveCheckpoint({
+        raceId: race.id,
+        checkpointId: checkpoint.id,
+        staffName,
+        isHost: Boolean(isHost)
+      });
+      localStorage.removeItem(`checkpoint_session_${checkpoint.id}`);
+      localStorage.removeItem(`checkpoint_staff_session_${checkpoint.id}`);
+      showToast({
+        type: 'info',
+        title: 'Checkpoint Released',
+        message: `You have left ${checkpoint.name}. The checkpoint is now available for other staff.`
+      });
+      setShowLeaveModal(false);
+      onExit();
+    } catch (err: any) {
+      console.error('Failed to leave checkpoint:', err);
+      showToast({
+        type: 'error',
+        title: 'Leave Failed',
+        message: err.message || 'Unable to release checkpoint assignment.'
+      });
+    } finally {
+      setLeaving(false);
+    }
+  };
 
   // Heartbeat loop & network sync
   useEffect(() => {
@@ -318,14 +359,29 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
       
       {/* Top Header Bar */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={onExit}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1.5 cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Leave Screen</span>
-          </button>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onExit}
+              className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1.5 cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
+            </button>
+
+            {/* Leave Checkpoint Action (Visible when current user is the assigned staff or host) */}
+            {isCurrentAssignedStaff && (
+              <button
+                id="btn-leave-checkpoint"
+                onClick={() => setShowLeaveModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Release this checkpoint assignment"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Leave Checkpoint</span>
+              </button>
+            )}
+          </div>
 
           {/* Connection Status Badge */}
           <div className="flex items-center gap-2">
@@ -670,6 +726,19 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         isLoading={submitting}
         onConfirm={handleConfirmFinish}
         onCancel={handleCancelFinish}
+      />
+
+      {/* Leave Checkpoint Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLeaveModal}
+        title="LEAVE CHECKPOINT?"
+        message={`Are you sure you want to leave ${checkpoint.name}?\n\nAfter leaving, another staff member will be able to join this checkpoint. All previously recorded splits and race timing data will remain safe.`}
+        confirmText="Leave Checkpoint"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={leaving}
+        onConfirm={handleLeaveCheckpoint}
+        onCancel={() => setShowLeaveModal(false)}
       />
 
     </div>

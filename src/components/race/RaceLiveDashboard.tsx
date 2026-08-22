@@ -80,11 +80,14 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
   const isFinished = race.status === 'FINISHED';
 
   // Map staff sessions by checkpointId
-  // A device is considered ONLINE if its lastSeenAt is within 35 seconds
-  const now = Date.now();
+  // Pick the most recent session for each checkpointId
+  const now = TimeSyncService.now() || Date.now();
   const sessionByCheckpoint = new Map<string, StaffSession>();
   staffSessions.forEach((s) => {
-    sessionByCheckpoint.set(s.checkpointId, s);
+    const existing = sessionByCheckpoint.get(s.checkpointId);
+    if (!existing || (s.lastSeenAt || 0) > (existing.lastSeenAt || 0)) {
+      sessionByCheckpoint.set(s.checkpointId, s);
+    }
   });
 
   const handleStartRace = async () => {
@@ -337,13 +340,24 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
               {stats.processedCheckpoints.map((row) => {
-                const session = sessionByCheckpoint.get(row.checkpoint.id);
-                const isOnline = session && (now - session.lastSeenAt < 35000);
                 const normType = normalizeCheckpointType(row.checkpoint.type);
                 const isStartOnly = normType === 'start' || row.checkpoint.isStart;
                 const isFinishOnly = !isStartOnly && normType === 'finish';
                 const isSplitFinish = !isStartOnly && normType === 'splitFinish';
                 const isHost = row.checkpoint.isHostAssigned;
+
+                let session = sessionByCheckpoint.get(row.checkpoint.id);
+                if (!session && isStartOnly) {
+                  session = staffSessions.find(s => s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START'));
+                }
+                if (!session && row.checkpoint.assignedStaffName) {
+                  session = staffSessions.find(s => s.staffName && s.staffName.trim().toLowerCase() === row.checkpoint.assignedStaffName?.trim().toLowerCase());
+                }
+
+                const isOnline = session && (
+                  Math.abs(now - (session.lastSeenAt || 0)) < 60000 || 
+                  Math.abs(Date.now() - (session.lastSeenAt || 0)) < 60000
+                );
 
                 return (
                   <tr 

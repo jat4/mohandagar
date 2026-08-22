@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { RaceService } from '../services/raceService';
+import { TimeSyncService } from '../services/timeSyncService';
 import { Race, Checkpoint, StaffSession, normalizeCheckpointType } from '../types/race';
 import { formatDistance } from '../utils/raceCalculations';
 import { QrCodeModal } from '../components/race/QrCodeModal';
@@ -144,13 +145,24 @@ export const HostRaceCheckpointsPage: React.FC = () => {
       {/* Checkpoints Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {race.checkpoints.map((cp, idx) => {
-          const session = staffSessions.find(s => s.checkpointId === cp.id);
-          const isOnline = session && (Date.now() - session.lastSeenAt < 60000);
           const normType = normalizeCheckpointType(cp.type);
           const isStartOnly = normType === 'start' || cp.isStart;
           const isFinishOnly = !isStartOnly && normType === 'finish';
           const isSplitFinish = !isStartOnly && normType === 'splitFinish';
           const isHost = cp.isHostAssigned;
+
+          let session = staffSessions.find(s => s.checkpointId === cp.id);
+          if (!session && isStartOnly) {
+            session = staffSessions.find(s => s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START'));
+          }
+          if (!session && cp.assignedStaffName) {
+            session = staffSessions.find(s => s.staffName && s.staffName.trim().toLowerCase() === cp.assignedStaffName?.trim().toLowerCase());
+          }
+
+          const isOnline = session && (
+            Math.abs(Date.now() - (session.lastSeenAt || 0)) < 60000 ||
+            Math.abs(TimeSyncService.now() - (session.lastSeenAt || 0)) < 60000
+          );
 
           return (
             <div

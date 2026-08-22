@@ -158,6 +158,18 @@ export const HostRaceLivePage: React.FC = () => {
       const hostName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Race Host';
       const hostUid = currentUser?.uid || race.hostUid || 'host';
       
+      // If host is already assigned to this checkpoint, toggle unassign
+      if (checkpoint.isHostAssigned) {
+        await RaceService.unassignHostFromCheckpoint(race.id, checkpoint.id, hostUid);
+        localStorage.removeItem(`checkpoint_session_${checkpoint.id}`);
+        showToast({
+          type: 'info',
+          title: 'Host Unassigned',
+          message: `${checkpoint.name} is now released and available for staff.`
+        });
+        return;
+      }
+
       // Assign host to checkpoint in database
       await RaceService.assignHostToCheckpoint(race.id, checkpoint.id, hostName, hostUid);
 
@@ -180,10 +192,11 @@ export const HostRaceLivePage: React.FC = () => {
       // Host remains on the management page (/host/race/:raceId) without redirecting
     } catch (err: any) {
       console.error('Failed to assign host:', err);
+      const isOccupied = err.message && (err.message.includes('currently assigned') || err.message.includes('already occupied') || err.message.includes('leaves'));
       showToast({
         type: 'error',
-        title: 'Assignment Error',
-        message: err.message || 'Could not assign host to checkpoint.'
+        title: isOccupied ? 'CHECKPOINT ALREADY OCCUPIED' : 'Assignment Error',
+        message: err.message || `${checkpoint.name} is currently assigned. You cannot assign yourself to this checkpoint until the current staff member leaves.`
       });
     }
   };
