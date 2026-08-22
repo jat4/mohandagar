@@ -52,7 +52,9 @@ interface CheckpointStaffScreenProps {
   staffName: string;
   deviceName: string;
   isHost?: boolean;
-  onExit: () => void;
+  onBack?: () => void;
+  onLeave?: () => void;
+  onExit?: () => void;
   onViewResult?: () => void;
 }
 
@@ -63,6 +65,8 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   staffName,
   deviceName,
   isHost,
+  onBack,
+  onLeave,
   onExit,
   onViewResult
 }) => {
@@ -96,12 +100,27 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
 
   // Check if current user is the actively assigned staff member or host
   const isCurrentAssignedStaff = Boolean(
-    checkpoint.assignedStaffName && (
-      (staffName.trim() && checkpoint.assignedStaffName.trim().toLowerCase() === staffName.trim().toLowerCase()) ||
-      (checkpoint.isHostAssigned && isHost)
-    )
+    (checkpoint.assignedStaffName && staffName.trim() && checkpoint.assignedStaffName.trim().toLowerCase() === staffName.trim().toLowerCase()) ||
+    (checkpoint.isHostAssigned && isHost) ||
+    Boolean(staffName.trim())
   );
 
+  // 1. Back button handler - ONLY performs navigation, NEVER releases assignment
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (onExit) {
+      onExit();
+    } else {
+      if (window.history.length > 1) {
+        navigate(-1);
+      } else {
+        navigate('/home');
+      }
+    }
+  };
+
+  // 2. Leave Checkpoint handler - The ONLY explicit action that releases active checkpoint assignment
   const handleLeaveCheckpoint = async () => {
     setLeaving(true);
     try {
@@ -119,7 +138,13 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         message: `You have left ${checkpoint.name}. The checkpoint is now available for other staff.`
       });
       setShowLeaveModal(false);
-      onExit();
+      if (onLeave) {
+        onLeave();
+      } else if (onExit) {
+        onExit();
+      } else {
+        navigate('/join');
+      }
     } catch (err: any) {
       console.error('Failed to leave checkpoint:', err);
       showToast({
@@ -370,8 +395,9 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button
-              onClick={onExit}
-              className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1.5 cursor-pointer"
+              id="btn-staff-back"
+              onClick={handleBack}
+              className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back</span>
@@ -740,7 +766,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
       <ConfirmModal
         isOpen={showLeaveModal}
         title="LEAVE CHECKPOINT?"
-        message={`Are you sure you want to leave ${checkpoint.name}?\n\nAfter leaving, another staff member will be able to join this checkpoint. All previously recorded splits and race timing data will remain safe.`}
+        message={`You are currently assigned to ${checkpoint.name}.\nLeaving will release this checkpoint for another staff member.\nYou will need to join again to continue timing.`}
         confirmText="Leave Checkpoint"
         cancelText="Cancel"
         variant="danger"

@@ -524,6 +524,7 @@ export class RaceService {
     const callerUid = params.staffUid || user?.uid || '';
     const callerName = params.staffName?.trim() || '';
     const now = TimeSyncService.now() || Date.now();
+    let resolvedTargetCpId = params.checkpointId;
 
     try {
       await runTransaction(db, async (transaction) => {
@@ -544,6 +545,8 @@ export class RaceService {
         if (!targetCp) {
           throw new Error('Checkpoint not found in this race.');
         }
+
+        resolvedTargetCpId = targetCp.id;
 
         const isCallerHost = Boolean(
           params.isHost ||
@@ -604,12 +607,19 @@ export class RaceService {
 
       // Cleanup associated staff session docs for this checkpoint in Firestore
       try {
-        const q = query(
-          collection(db, 'races', params.raceId, 'staffSessions'),
-          where('checkpointId', '==', params.checkpointId)
-        );
-        const snaps = await getDocs(q);
-        const delPromises = snaps.docs.map((d) => deleteDoc(d.ref));
+        const sessionsRef = collection(db, 'races', params.raceId, 'staffSessions');
+        const snaps = await getDocs(sessionsRef);
+        const delPromises: Promise<any>[] = [];
+        snaps.forEach((d) => {
+          const s = d.data() as StaffSession;
+          if (
+            s.checkpointId === params.checkpointId ||
+            s.checkpointId === resolvedTargetCpId ||
+            (params.checkpointId === 'START' && (s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START')))
+          ) {
+            delPromises.push(deleteDoc(d.ref).catch(() => {}));
+          }
+        });
         await Promise.all(delPromises);
       } catch (sessErr) {
         console.warn('Session cleanup note:', sessErr);

@@ -161,7 +161,16 @@ export const CheckpointScreenPage: React.FC = () => {
         events={events}
         staffName={staffName}
         deviceName={deviceName}
-        onExit={() => navigate('/join')}
+        onBack={() => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate('/home');
+          }
+        }}
+        onLeave={() => {
+          navigate('/join');
+        }}
         onViewResult={() => navigate(`/activity/${race.id}`)}
       />
     </div>

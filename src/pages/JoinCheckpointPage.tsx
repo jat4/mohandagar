@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { RaceService } from '../services/raceService';
 import { auth } from '../lib/firebase';
-import { Race, Checkpoint, normalizeCheckpointType, getActiveCheckpointAssignment, formatCleanErrorMessage } from '../types/race';
+import { Race, Checkpoint, StaffSession, normalizeCheckpointType, getActiveCheckpointAssignment, getCheckpointRoleInfo, formatCleanErrorMessage } from '../types/race';
 import { formatDistance } from '../utils/raceCalculations';
 import { CameraQrScanner } from '../components/race/CameraQrScanner';
 import { 
@@ -102,6 +102,7 @@ export const JoinCheckpointPage: React.FC = () => {
 
   const [resolvedRace, setResolvedRace] = useState<Race | null>(null);
   const [resolvedCheckpoint, setResolvedCheckpoint] = useState<Checkpoint | null>(null);
+  const [staffSessions, setStaffSessions] = useState<StaffSession[]>([]);
 
   // If page loads with a join code in route/query param, resolve it
   useEffect(() => {
@@ -110,6 +111,34 @@ export const JoinCheckpointPage: React.FC = () => {
       resolveCheckpointDetails(initialCode);
     }
   }, [initialCode]);
+
+  // Live real-time subscription to race and staff sessions when resolved
+  useEffect(() => {
+    if (!resolvedRace?.id) return;
+    const unsubRace = RaceService.subscribeToRace(
+      resolvedRace.id,
+      (race) => {
+        if (race) {
+          setResolvedRace(race);
+          const cp = race.checkpoints?.find((c) => c.id === resolvedCheckpoint?.id);
+          if (cp) setResolvedCheckpoint(cp);
+        }
+      },
+      (err) => console.warn('Race subscription notice:', err)
+    );
+
+    const unsubSessions = RaceService.subscribeToStaffSessions(
+      resolvedRace.id,
+      (sessions) => {
+        setStaffSessions(sessions);
+      }
+    );
+
+    return () => {
+      unsubRace();
+      unsubSessions();
+    };
+  }, [resolvedRace?.id, resolvedCheckpoint?.id]);
 
   /**
    * Resolve Join Code to Race & Checkpoint from Firebase without auto-joining
@@ -149,35 +178,6 @@ export const JoinCheckpointPage: React.FC = () => {
       const checkpoint = race.checkpoints?.find((c) => c.id === mapping.checkpointId);
       if (!checkpoint) {
         setErrorMessage('Invalid or expired checkpoint QR.');
-        setResolvedRace(null);
-        setResolvedCheckpoint(null);
-        setResolvingCode(false);
-        setLoading(false);
-        return;
-      }
-
-      // Check if checkpoint is already occupied by another staff member / device
-      const activeAssignment = getActiveCheckpointAssignment(checkpoint);
-      const currentUserName = staffName.trim() || localStorage.getItem('stopwatch_staff_name')?.trim();
-      const currentUid = auth.currentUser?.uid;
-
-      const isSameUser = Boolean(
-        (currentUid && checkpoint.assignedStaffUid && currentUid === checkpoint.assignedStaffUid) ||
-        (currentUserName && activeAssignment.staffName && currentUserName.toLowerCase() === activeAssignment.staffName.toLowerCase()) ||
-        (checkpoint.isHostAssigned && currentUid === race.hostUid)
-      );
-
-      if (checkpoint.isHostAssigned && !isSameUser) {
-        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${activeAssignment.staffName || 'Host'}. You cannot join this checkpoint until the current staff member leaves.`);
-        setResolvedRace(null);
-        setResolvedCheckpoint(null);
-        setResolvingCode(false);
-        setLoading(false);
-        return;
-      }
-
-      if (activeAssignment.isOccupied && !isSameUser) {
-        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${activeAssignment.staffName}. You cannot join this checkpoint until the current staff member leaves.`);
         setResolvedRace(null);
         setResolvedCheckpoint(null);
         setResolvingCode(false);
@@ -230,12 +230,26 @@ export const JoinCheckpointPage: React.FC = () => {
       return;
     }
 
+    // Check if checkpoint is already occupied by another staff member / device
+    const activeAssignment = getActiveCheckpointAssignment(resolvedCheckpoint, staffSessions);
+    const finalStaffName = staffName.trim() || 'Volunteer Staff';
+    const finalDeviceName = deviceName.trim() || 'Mobile Device';
+    const currentUid = auth.currentUser?.uid;
+
+    const isSameUser = Boolean(
+      (currentUid && resolvedCheckpoint.assignedStaffUid && currentUid === resolvedCheckpoint.assignedStaffUid) ||
+      (finalStaffName && activeAssignment.staffName && finalStaffName.toLowerCase() === activeAssignment.staffName.toLowerCase()) ||
+      (resolvedCheckpoint.isHostAssigned && currentUid === resolvedRace.hostUid)
+    );
+
+    if (activeAssignment.isOccupied && !isSameUser) {
+      setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${resolvedCheckpoint.name} is currently assigned to ${activeAssignment.staffName}. You cannot join this checkpoint until the current staff member leaves.`);
+      return;
+    }
+
     setJoining(true);
 
     try {
-      const finalStaffName = staffName.trim() || 'Volunteer Staff';
-      const finalDeviceName = deviceName.trim() || 'Mobile Device';
-
       // 1. Claim checkpoint atomically with Firestore transaction protection
       await RaceService.claimCheckpoint({
         raceId: resolvedRace.id,
@@ -314,23 +328,9 @@ export const JoinCheckpointPage: React.FC = () => {
 
   // 2. Resolved Checkpoint View: Displays Race + Checkpoint details & [ JOIN CHECKPOINT ] button
   if (resolvedCheckpoint && resolvedRace) {
-    const normType = normalizeCheckpointType(resolvedCheckpoint.type);
-    const isFinishOnly = normType === 'finish';
-    const isSplitFinish = normType === 'splitFinish';
-
-    let typeDisplayName = 'Split (Split Only)';
-    let typeAuthorityHint = 'Authority: Record runner splits';
-    let typeBadgeClass = 'bg-cyan-950 text-cyan-300 border-cyan-500/40';
-
-    if (isFinishOnly) {
-      typeDisplayName = 'Finish Line (Finish Only)';
-      typeAuthorityHint = 'Authority: Official race finish line';
-      typeBadgeClass = 'bg-rose-950 text-rose-300 border-rose-500/40';
-    } else if (isSplitFinish) {
-      typeDisplayName = 'Split Gate (Split & Finish)';
-      typeAuthorityHint = 'Authority: Record splits and trigger finish';
-      typeBadgeClass = 'bg-emerald-950 text-emerald-300 border-emerald-500/40';
-    }
+    const roleInfo = getCheckpointRoleInfo(resolvedCheckpoint);
+    const isStartOnly = roleInfo.typeDisplayName === 'START ONLY';
+    const activeAssignment = getActiveCheckpointAssignment(resolvedCheckpoint, staffSessions);
 
     return (
       <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 sm:p-6 animate-fadeIn">
@@ -349,6 +349,14 @@ export const JoinCheckpointPage: React.FC = () => {
               Verified with live race database
             </p>
           </div>
+
+          {/* Error message banner if occupied or join error */}
+          {errorMessage && (
+            <div className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-500/50 text-rose-300 text-xs font-mono flex items-start gap-2 animate-fadeIn">
+              <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{errorMessage}</span>
+            </div>
+          )}
 
           {/* Structured Race & Checkpoint Details Card */}
           <div className="rounded-2xl bg-slate-950 border border-slate-800/90 overflow-hidden divide-y divide-slate-800/60 font-mono text-xs">
@@ -381,19 +389,19 @@ export const JoinCheckpointPage: React.FC = () => {
             <div className="p-3.5 flex items-center justify-between gap-2">
               <span className="text-slate-400 shrink-0 font-medium">Distance:</span>
               <span className="text-slate-200 font-bold text-sm text-right">
-                {formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace.displayUnit)}
+                {isStartOnly ? '0.00 km' : formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace.displayUnit)}
               </span>
             </div>
 
-            {/* Type */}
+            {/* Type & Authority */}
             <div className="p-3.5 flex items-center justify-between gap-2">
               <span className="text-slate-400 shrink-0 font-medium">Type:</span>
               <div className="text-right">
-                <span className={`inline-block px-2.5 py-0.5 rounded-md border text-[11px] font-bold ${typeBadgeClass}`}>
-                  {typeDisplayName}
+                <span className={`inline-block px-2.5 py-0.5 rounded-md border text-[11px] font-bold ${roleInfo.badgeClass}`}>
+                  {roleInfo.typeDisplayName}
                 </span>
                 <span className="block text-[10px] text-slate-500 mt-0.5">
-                  {typeAuthorityHint}
+                  Authority: {roleInfo.authorityDescription}
                 </span>
               </div>
             </div>
@@ -402,13 +410,13 @@ export const JoinCheckpointPage: React.FC = () => {
             <div className="p-3.5 flex items-center justify-between gap-2">
               <span className="text-slate-400 shrink-0 font-medium">Gate Status:</span>
               <div className="text-right font-bold text-xs">
-                {resolvedCheckpoint.isHostAssigned ? (
+                {activeAssignment.isHost ? (
                   <span className="inline-block px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-500/40 text-amber-300">
-                    👑 Host Assigned ({resolvedCheckpoint.assignedStaffName || 'Host'})
+                    👑 Host Assigned ({activeAssignment.staffName || 'Host'})
                   </span>
-                ) : resolvedCheckpoint.assignedStaffName ? (
+                ) : activeAssignment.isOccupied ? (
                   <span className="inline-block px-2 py-0.5 rounded-md bg-cyan-950/80 border border-cyan-500/40 text-cyan-300">
-                    🔒 Assigned ({resolvedCheckpoint.assignedStaffName})
+                    🔒 Occupied — {activeAssignment.staffName}
                   </span>
                 ) : (
                   <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/40 text-emerald-300">

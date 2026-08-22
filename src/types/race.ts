@@ -286,6 +286,64 @@ export function isPlaceholderStaffName(name?: string, _checkpointName?: string):
   return false;
 }
 
+export interface CheckpointRoleInfo {
+  typeDisplayName: string;
+  authorityDescription: string;
+  badgeClass: string;
+}
+
+/**
+ * Returns dynamic role and authority description strictly corresponding to authoritative checkpoint configuration.
+ * START LINE -> START ONLY / Establish official race start
+ * SPLIT ONLY -> SPLIT ONLY / Record runner splits
+ * SPLIT & FINISH -> SPLIT & FINISH / Record split and finish timing
+ * FINISH LINE -> FINISH ONLY / Record official finish time
+ */
+export function getCheckpointRoleInfo(checkpoint?: Checkpoint | null): CheckpointRoleInfo {
+  if (!checkpoint) {
+    return {
+      typeDisplayName: 'SPLIT ONLY',
+      authorityDescription: 'Record runner splits',
+      badgeClass: 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
+    };
+  }
+
+  const normType = normalizeCheckpointType(checkpoint.type);
+  const isStart = normType === 'start' || checkpoint.isStart || (checkpoint.distanceMeters === 0 && checkpoint.order === 0);
+  const isFinish = !isStart && normType === 'finish';
+  const isSplitFinish = !isStart && !isFinish && normType === 'splitFinish';
+
+  if (isStart) {
+    return {
+      typeDisplayName: 'START ONLY',
+      authorityDescription: 'Establish official race start',
+      badgeClass: 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+    };
+  }
+
+  if (isFinish) {
+    return {
+      typeDisplayName: 'FINISH ONLY',
+      authorityDescription: 'Record official finish time',
+      badgeClass: 'bg-rose-950 text-rose-300 border-rose-500/40'
+    };
+  }
+
+  if (isSplitFinish) {
+    return {
+      typeDisplayName: 'SPLIT & FINISH',
+      authorityDescription: 'Record split and finish timing',
+      badgeClass: 'bg-amber-950 text-amber-300 border-amber-500/40'
+    };
+  }
+
+  return {
+    typeDisplayName: 'SPLIT ONLY',
+    authorityDescription: 'Record runner splits',
+    badgeClass: 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
+  };
+}
+
 export interface ActiveCheckpointAssignment {
   isOccupied: boolean;
   staffName: string;

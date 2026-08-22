@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RaceService } from '../../services/raceService';
 import { auth } from '../../lib/firebase';
-import { Race, Checkpoint, TimingEvent, normalizeCheckpointType, getActiveCheckpointAssignment, formatCleanErrorMessage } from '../../types/race';
+import { Race, Checkpoint, TimingEvent, StaffSession, normalizeCheckpointType, getActiveCheckpointAssignment, getCheckpointRoleInfo, formatCleanErrorMessage } from '../../types/race';
 import { formatDistance } from '../../utils/raceCalculations';
 import { CheckpointStaffScreen } from './CheckpointStaffScreen';
 import { CameraQrScanner } from './CameraQrScanner';
@@ -62,6 +62,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
   // Resolved states
   const [resolvedRace, setResolvedRace] = useState<Race | null>(null);
   const [resolvedCheckpoint, setResolvedCheckpoint] = useState<Checkpoint | null>(null);
+  const [staffSessions, setStaffSessions] = useState<StaffSession[]>([]);
   const [events, setEvents] = useState<TimingEvent[]>([]);
   const [joined, setJoined] = useState(Boolean(initialStaffParams?.raceId && initialStaffParams?.checkpointId));
 
@@ -94,7 +95,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
     }
   }, [initialJoinCode]);
 
-  // Subscribe to live race once resolved
+  // Subscribe to live race and staff sessions once resolved
   useEffect(() => {
     if (!resolvedRace?.id) return;
 
@@ -110,6 +111,13 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
       (err) => console.error(err)
     );
 
+    const unsubSessions = RaceService.subscribeToStaffSessions(
+      resolvedRace.id,
+      (sessions) => {
+        setStaffSessions(sessions);
+      }
+    );
+
     const unsubEvents = RaceService.subscribeToTimingEvents(
       resolvedRace.id,
       (evts) => setEvents([...evts])
@@ -117,6 +125,7 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
 
     return () => {
       unsubRace();
+      unsubSessions();
       unsubEvents();
     };
   }, [resolvedRace?.id, resolvedCheckpoint?.id]);
@@ -153,33 +162,6 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
         return;
       }
 
-      // Check if checkpoint is already occupied by another staff member / device
-      const activeAssignment = getActiveCheckpointAssignment(checkpoint);
-      const currentUserName = staffName.trim() || localStorage.getItem('stopwatch_staff_name')?.trim();
-      const currentUid = auth.currentUser?.uid;
-
-      const isSameUser = Boolean(
-        (currentUid && checkpoint.assignedStaffUid && currentUid === checkpoint.assignedStaffUid) ||
-        (currentUserName && activeAssignment.staffName && currentUserName.toLowerCase() === activeAssignment.staffName.toLowerCase()) ||
-        (checkpoint.isHostAssigned && currentUid === race.hostUid)
-      );
-
-      if (checkpoint.isHostAssigned && !isSameUser) {
-        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${activeAssignment.staffName || 'Host'}. You cannot join this checkpoint until the current staff member leaves.`);
-        setResolvedRace(null);
-        setResolvedCheckpoint(null);
-        setLoading(false);
-        return;
-      }
-
-      if (activeAssignment.isOccupied && !isSameUser) {
-        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${activeAssignment.staffName}. You cannot join this checkpoint until the current staff member leaves.`);
-        setResolvedRace(null);
-        setResolvedCheckpoint(null);
-        setLoading(false);
-        return;
-      }
-
       setResolvedRace(race);
       setResolvedCheckpoint(checkpoint);
       setJoinCode(code);
@@ -210,6 +192,22 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
       return;
     }
     if (resolvedRace && resolvedCheckpoint) {
+      // Check if occupied by another user
+      const activeAssignment = getActiveCheckpointAssignment(resolvedCheckpoint, staffSessions);
+      const currentUserName = staffName.trim();
+      const currentUid = auth.currentUser?.uid;
+
+      const isSameUser = Boolean(
+        (currentUid && resolvedCheckpoint.assignedStaffUid && currentUid === resolvedCheckpoint.assignedStaffUid) ||
+        (currentUserName && activeAssignment.staffName && currentUserName.toLowerCase() === activeAssignment.staffName.toLowerCase()) ||
+        (resolvedCheckpoint.isHostAssigned && currentUid === resolvedRace.hostUid)
+      );
+
+      if (activeAssignment.isOccupied && !isSameUser) {
+        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${resolvedCheckpoint.name} is currently assigned to ${activeAssignment.staffName}. You cannot join this checkpoint until the current staff member leaves.`);
+        return;
+      }
+
       try {
         await RaceService.claimCheckpoint({
           raceId: resolvedRace.id,
@@ -242,8 +240,13 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
         events={events}
         staffName={staffName.trim()}
         deviceName={deviceName.trim() || 'Staff Phone'}
-        onExit={() => {
+        onBack={() => {
+          onBackToMain();
+        }}
+        onLeave={() => {
           setJoined(false);
+          setResolvedCheckpoint(null);
+          setResolvedRace(null);
           onBackToMain();
         }}
         onViewResult={() => navigate(`/activity/${resolvedRace.id}`)}
@@ -375,47 +378,42 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
             
             {/* Checkpoint Details Card */}
             {(() => {
-              const normType = normalizeCheckpointType(resolvedCheckpoint.type);
-              const isStartOnly = normType === 'start' || resolvedCheckpoint.isStart;
-              const isFinishOnly = !isStartOnly && normType === 'finish';
-              const isSplitFinish = !isStartOnly && normType === 'splitFinish';
+              const roleInfo = getCheckpointRoleInfo(resolvedCheckpoint);
+              const isStartOnly = roleInfo.typeDisplayName === 'START ONLY';
+              const activeAssignment = getActiveCheckpointAssignment(resolvedCheckpoint, staffSessions);
 
               return (
-                <div className={`p-4 rounded-2xl border text-left ${
-                  isStartOnly
-                    ? 'bg-emerald-950/30 border-emerald-500/40'
-                    : isFinishOnly
-                    ? 'bg-rose-950/30 border-rose-500/40'
-                    : isSplitFinish
-                    ? 'bg-emerald-950/30 border-emerald-500/40'
-                    : 'bg-cyan-950/40 border-cyan-500/40'
-                }`}>
-                  <div className="flex items-center justify-between text-xs font-mono mb-1 font-bold">
-                    <span className={isStartOnly ? 'text-emerald-400' : isFinishOnly ? 'text-rose-400' : isSplitFinish ? 'text-emerald-400' : 'text-cyan-400'}>
-                      {isStartOnly
-                        ? '🚦 START LINE (START ONLY) 🔒'
-                        : isFinishOnly
-                        ? '🏁 FINISH LINE (FINISH ONLY) 🔒'
-                        : isSplitFinish
-                        ? '⚡ SPLIT GATE (SPLIT & FINISH)'
-                        : '⚡ SPLIT (SPLIT ONLY)'}
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/90 text-left space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className={`inline-block px-2 py-0.5 rounded-md border text-[11px] font-bold ${roleInfo.badgeClass}`}>
+                      {roleInfo.typeDisplayName}
                     </span>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <div className="font-bold text-[11px]">
+                      {activeAssignment.isHost ? (
+                        <span className="text-amber-400">👑 Host Assigned</span>
+                      ) : activeAssignment.isOccupied ? (
+                        <span className="text-cyan-400">🔒 Occupied ({activeAssignment.staffName})</span>
+                      ) : (
+                        <span className="text-emerald-400">✓ Available</span>
+                      )}
+                    </div>
                   </div>
+
                   <div className="text-xl font-bold text-slate-100">
                     {resolvedCheckpoint.name}
                   </div>
-                  <div className="text-xs font-mono text-slate-300 mt-0.5">
-                    Distance: <strong>{isStartOnly ? '0 m (Fixed)' : formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace?.displayUnit)}</strong>
-                    <span className="ml-2 text-slate-500">
-                      • Type:{' '}
-                      <strong className="text-slate-200">
-                        {isStartOnly ? 'Start Only' : isFinishOnly ? 'Finish Only' : isSplitFinish ? 'Split & Finish' : 'Split Only'}
-                      </strong>
-                    </span>
+
+                  <div className="text-xs font-mono text-slate-300">
+                    Distance: <strong>{isStartOnly ? '0.00 km' : formatDistance(resolvedCheckpoint.distanceMeters, resolvedRace?.displayUnit)}</strong>
                   </div>
-                  <div className="mt-2 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
-                    Race: <strong className="text-slate-200">{resolvedRace?.name}</strong> • Runner: <strong className="text-slate-200">{resolvedRace?.runnerName}</strong>
+
+                  <div className="text-[11px] font-mono text-slate-400">
+                    Authority: <span className="text-slate-300 font-medium">{roleInfo.authorityDescription}</span>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400 flex items-center justify-between">
+                    <span>Race: <strong className="text-slate-200">{resolvedRace?.name}</strong></span>
+                    <span>Runner: <strong className="text-cyan-300">{resolvedRace?.runnerName}</strong></span>
                   </div>
                 </div>
               );
