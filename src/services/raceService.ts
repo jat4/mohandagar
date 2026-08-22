@@ -612,11 +612,13 @@ export class RaceService {
         const delPromises: Promise<any>[] = [];
         snaps.forEach((d) => {
           const s = d.data() as StaffSession;
-          if (
-            s.checkpointId === params.checkpointId ||
+          const isMatchingCp = s.checkpointId === params.checkpointId ||
             s.checkpointId === resolvedTargetCpId ||
-            (params.checkpointId === 'START' && (s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START')))
-          ) {
+            (params.checkpointId === 'START' && (s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START')));
+          const isMatchingStaff = Boolean(callerName && s.staffName && s.staffName.trim().toLowerCase() === callerName.trim().toLowerCase());
+          const isMatchingUid = Boolean(callerUid && s.id && s.id.includes(callerUid));
+
+          if (isMatchingCp || isMatchingStaff || isMatchingUid) {
             delPromises.push(deleteDoc(d.ref).catch(() => {}));
           }
         });

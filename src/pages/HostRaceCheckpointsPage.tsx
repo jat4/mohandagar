@@ -159,13 +159,20 @@ export const HostRaceCheckpointsPage: React.FC = () => {
           const activeAssignment = getActiveCheckpointAssignment(cp, staffSessions);
           const isHost = activeAssignment.isHost;
 
-          const matchingSessions = staffSessions.filter(s => 
-            s.checkpointId === cp.id || 
-            (isStartOnly && (s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START')))
-          );
+          const matchingSessions = (activeAssignment.isOccupied && staffSessions)
+            ? staffSessions.filter(s => {
+                const isMatchingCp = s.checkpointId === cp.id || (isStartOnly && (s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START')));
+                if (!isMatchingCp) return false;
+                if (isHost) return Boolean(s.isHost);
+                const assignedName = activeAssignment.staffName.trim().toLowerCase();
+                const sessionStaffName = s.staffName?.trim().toLowerCase();
+                return sessionStaffName === assignedName || Boolean(activeAssignment.staffUid && s.id?.includes(activeAssignment.staffUid));
+              })
+            : [];
           const session = matchingSessions.sort((a, b) => (b.lastSeenAt || b.joinedAt || 0) - (a.lastSeenAt || a.joinedAt || 0))[0];
 
           const isOnline = Boolean(
+            activeAssignment.isOccupied &&
             session &&
             session.status !== 'OFFLINE' &&
             (

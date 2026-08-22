@@ -24,6 +24,7 @@ import { RaceTimerClock } from './RaceTimerClock';
 import { LiveRaceProgressTimeline } from './LiveRaceProgressTimeline';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { useToast } from '../../context/ToastContext';
+import { auth } from '../../lib/firebase';
 import { 
   Wifi, 
   WifiOff, 
@@ -78,6 +79,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const hasLeftRef = useRef<boolean>(false);
   const [pendingFinish, setPendingFinish] = useState<{
     capturedTimestamp: number;
     capturedElapsedMs: number;
@@ -122,12 +124,14 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
 
   // 2. Leave Checkpoint handler - The ONLY explicit action that releases active checkpoint assignment
   const handleLeaveCheckpoint = async () => {
+    hasLeftRef.current = true;
     setLeaving(true);
     try {
       await RaceService.leaveCheckpoint({
         raceId: race.id,
         checkpointId: checkpoint.id,
         staffName,
+        staffUid: auth.currentUser?.uid,
         isHost: Boolean(isHost)
       });
       localStorage.removeItem(`checkpoint_session_${checkpoint.id}`);
@@ -146,6 +150,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         navigate('/join');
       }
     } catch (err: any) {
+      hasLeftRef.current = false;
       console.error('Failed to leave checkpoint:', err);
       showToast({
         type: 'error',
@@ -160,6 +165,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   // Heartbeat loop & network sync
   useEffect(() => {
     const handleOnline = () => {
+      if (hasLeftRef.current) return;
       setIsOnline(true);
       TimeSyncService.sync();
       RaceService.updateStaffHeartbeat(race.id, sessionId, {
@@ -170,6 +176,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
       });
     };
     const handleOffline = () => {
+      if (hasLeftRef.current) return;
       setIsOnline(false);
       RaceService.updateStaffHeartbeat(race.id, sessionId, {
         checkpointId: checkpoint.id,
@@ -183,21 +190,24 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
     window.addEventListener('offline', handleOffline);
 
     // Initial heartbeat
-    RaceService.updateStaffHeartbeat(race.id, sessionId, {
-      id: sessionId,
-      raceId: race.id,
-      checkpointId: checkpoint.id,
-      checkpointName: checkpoint.name,
-      checkpointDistanceMeters: checkpoint.distanceMeters,
-      staffName,
-      deviceName,
-      joinedAt: Date.now(),
-      status: 'ONLINE',
-      isHost: !!isHost
-    });
+    if (!hasLeftRef.current) {
+      RaceService.updateStaffHeartbeat(race.id, sessionId, {
+        id: sessionId,
+        raceId: race.id,
+        checkpointId: checkpoint.id,
+        checkpointName: checkpoint.name,
+        checkpointDistanceMeters: checkpoint.distanceMeters,
+        staffName,
+        deviceName,
+        joinedAt: Date.now(),
+        status: 'ONLINE',
+        isHost: !!isHost
+      });
+    }
 
     // Periodic heartbeat every 12s
     const heartbeatInterval = setInterval(() => {
+      if (hasLeftRef.current) return;
       if (navigator.onLine) {
         RaceService.updateStaffHeartbeat(race.id, sessionId, {
           checkpointId: checkpoint.id,

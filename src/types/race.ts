@@ -364,9 +364,6 @@ export function getActiveCheckpointAssignment(
     return { isOccupied: false, staffName: '' };
   }
 
-  const normType = normalizeCheckpointType(checkpoint.type);
-  const isStart = normType === 'start' || checkpoint.isStart || (checkpoint.distanceMeters === 0 && checkpoint.name?.toUpperCase().includes('START'));
-
   // 1. Host assignment check
   if (checkpoint.isHostAssigned) {
     const rawStaffName = checkpoint.assignedStaffName?.trim();
@@ -388,33 +385,29 @@ export function getActiveCheckpointAssignment(
   const hasStaffUid = Boolean(checkpoint.assignedStaffUid && checkpoint.assignedStaffUid.trim() !== '');
 
   if (hasRealStaffName || hasStaffUid) {
+    let resolvedDeviceName = checkpoint.assignedDeviceName || 'Staff Device';
+    if (staffSessions && staffSessions.length > 0) {
+      const matchingSession = staffSessions.find(s => 
+        (s.checkpointId === checkpoint.id || (checkpoint.isStart && s.checkpointId === 'START')) &&
+        ((checkpoint.assignedStaffUid && s.id?.includes(checkpoint.assignedStaffUid)) ||
+         (rawStaffName && s.staffName?.toLowerCase() === rawStaffName.toLowerCase()))
+      );
+      if (matchingSession?.deviceName) {
+        resolvedDeviceName = matchingSession.deviceName;
+      }
+    }
+
     return {
       isOccupied: true,
       staffName: hasRealStaffName ? rawStaffName! : 'Staff Member',
-      deviceName: checkpoint.assignedDeviceName || 'Staff Device',
+      deviceName: resolvedDeviceName,
       staffUid: checkpoint.assignedStaffUid,
       isHost: false
     };
   }
 
-  // 3. Active staff sessions in Firestore (from live connected devices)
-  if (staffSessions && staffSessions.length > 0) {
-    const matchingSessions = staffSessions.filter(s => 
-      s.checkpointId === checkpoint.id || 
-      (isStart && (s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START')))
-    );
-    const session = matchingSessions.sort((a, b) => (b.lastSeenAt || b.joinedAt || 0) - (a.lastSeenAt || a.joinedAt || 0))[0];
-
-    if (session && session.staffName && !isPlaceholderStaffName(session.staffName)) {
-      return {
-        isOccupied: true,
-        staffName: session.staffName,
-        deviceName: session.deviceName || 'Staff Device',
-        isHost: Boolean(session.isHost)
-      };
-    }
-  }
-
+  // 3. When checkpoint has no assigned staff name or uid, it is strictly unassigned.
+  // Orphaned or previous session docs from departed staff will never occupy an unassigned checkpoint.
   return {
     isOccupied: false,
     staffName: ''
