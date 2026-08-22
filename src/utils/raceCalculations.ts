@@ -48,6 +48,28 @@ export function formatPace(secondsPerKm: number | null | undefined): string {
 }
 
 /**
+ * Formats a Date or timestamp into 12-hour wall-clock time string with AM/PM (e.g., "09:36:34 PM").
+ */
+export function formatWallClockTime12h(dateOrTimestamp: Date | number): string {
+  const date = typeof dateOrTimestamp === 'number' ? new Date(dateOrTimestamp) : dateOrTimestamp;
+  if (!date || isNaN(date.getTime())) return '--:--:-- --';
+
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = date.getSeconds();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+
+  hours = hours % 12;
+  hours = hours ? hours : 12; // 0 becomes 12
+
+  const hoursStr = String(hours).padStart(2, '0');
+  const minutesStr = String(minutes).padStart(2, '0');
+  const secondsStr = String(seconds).padStart(2, '0');
+
+  return `${hoursStr}:${minutesStr}:${secondsStr} ${ampm}`;
+}
+
+/**
  * Format speed in km/h to XX.XX km/h
  */
 export function formatSpeed(kmh: number | null | undefined): string {
@@ -503,19 +525,14 @@ export function calculateLiveRunnerProgress(
       const expectedWallClockTimestamp = startMs + estimatedRaceElapsedMs;
       const expectedWallClockDate = new Date(expectedWallClockTimestamp);
       
-      const expectedWallClockTimeFormatted = expectedWallClockDate.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
+      const expectedWallClockTimeFormatted = formatWallClockTime12h(expectedWallClockDate);
 
       // Calculate an expected window (e.g. ±15-30s or ±5% window)
       const windowMarginMs = Math.max(15000, Math.round(estimatedSegmentTimeMs * 0.05));
       const windowStartDate = new Date(expectedWallClockTimestamp - windowMarginMs);
       const windowEndDate = new Date(expectedWallClockTimestamp + windowMarginMs);
-      const windowStartFormatted = windowStartDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-      const windowEndFormatted = windowEndDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      const windowStartFormatted = formatWallClockTime12h(windowStartDate);
+      const windowEndFormatted = formatWallClockTime12h(windowEndDate);
       const expectedWindowFormatted = `~${windowStartFormatted}–${windowEndFormatted}`;
 
       const isFinal = normalizeCheckpointType(targetCp.type) === 'finish' || 
