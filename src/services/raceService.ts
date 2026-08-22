@@ -137,7 +137,7 @@ export class RaceService {
         distanceMeters: 0,
         type: 'start' as CheckpointType,
         isStart: true,
-        assignedStaffName: startCpInput.assignedStaffName && !isPlaceholderStaffName(startCpInput.assignedStaffName, 'START LINE')
+        assignedStaffName: startCpInput.assignedStaffName && !isPlaceholderStaffName(startCpInput.assignedStaffName)
           ? startCpInput.assignedStaffName.trim()
           : ''
       },
@@ -146,7 +146,7 @@ export class RaceService {
         distanceMeters: cp.distanceMeters,
         type: (normalizeCheckpointType(cp.type) === 'splitOnly' ? 'splitOnly' : 'splitFinish') as CheckpointType,
         isStart: false,
-        assignedStaffName: cp.assignedStaffName && !isPlaceholderStaffName(cp.assignedStaffName, cp.name)
+        assignedStaffName: cp.assignedStaffName && !isPlaceholderStaffName(cp.assignedStaffName)
           ? cp.assignedStaffName.trim()
           : ''
       })),
@@ -155,7 +155,7 @@ export class RaceService {
         distanceMeters: input.totalPlannedDistanceMeters,
         type: 'finish' as CheckpointType,
         isStart: false,
-        assignedStaffName: finishCpInput.assignedStaffName && !isPlaceholderStaffName(finishCpInput.assignedStaffName, 'FINISH LINE')
+        assignedStaffName: finishCpInput.assignedStaffName && !isPlaceholderStaffName(finishCpInput.assignedStaffName)
           ? finishCpInput.assignedStaffName.trim()
           : ''
       }

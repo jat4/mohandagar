@@ -265,10 +265,11 @@ export interface LiveRunnerProgress {
 }
 
 /**
- * Checks if a string is a placeholder/metadata/role default label rather than a real staff member name.
- * Default role names, gate labels ("Start Line", "Finish Line", "Phone A", "CP 1", etc.) are NEVER real staff assignments.
+ * Checks if a string represents an unassigned placeholder value (e.g. empty string or "unassigned").
+ * Real staff names (including names like "Start Line", "Start Line1", "Finish Line", "CP1", etc.)
+ * are valid user identities and must NEVER be confused with or rejected as checkpoint metadata.
  */
-export function isPlaceholderStaffName(name?: string, checkpointName?: string): boolean {
+export function isPlaceholderStaffName(name?: string, _checkpointName?: string): boolean {
   if (!name) return true;
   const trimmed = name.trim();
   if (
@@ -282,43 +283,6 @@ export function isPlaceholderStaffName(name?: string, checkpointName?: string): 
   ) {
     return true;
   }
-  
-  const lower = trimmed.toLowerCase();
-  
-  // Checkpoint role/type placeholders
-  if (
-    lower === 'start line' || 
-    lower === 'start' || 
-    lower === 'start gate' || 
-    lower === 'start line gate' ||
-    lower === 'start only' ||
-    lower === 'finish line' || 
-    lower === 'finish' || 
-    lower === 'finish gate' || 
-    lower === 'finish line gate' ||
-    lower === 'finish only' ||
-    lower === 'split gate' ||
-    lower === 'split only' ||
-    lower === 'split & finish'
-  ) {
-    return true;
-  }
-
-  // Default device labels e.g., "Phone A", "Phone B", "Phone 1", "Device A", "Device 1", "Phone"
-  if (/^(phone|device)\s*([a-z]|[0-9]+)?$/i.test(lower)) {
-    return true;
-  }
-
-  // Check if it's identical to the checkpoint name (e.g. "CP 1", "CP 1 (Turn 1)", "CP1", "START LINE", "FINISH LINE")
-  if (checkpointName && lower === checkpointName.trim().toLowerCase()) {
-    return true;
-  }
-
-  // Regex matching generic gate names like "CP 1", "CP1", "CP 2", "Gate 1", etc.
-  if (/^(cp|gate)\s*[0-9]+(\s*\(.*\))?$/i.test(lower)) {
-    return true;
-  }
-
   return false;
 }
 
@@ -348,7 +312,7 @@ export function getActiveCheckpointAssignment(
   // 1. Host assignment check
   if (checkpoint.isHostAssigned) {
     const rawStaffName = checkpoint.assignedStaffName?.trim();
-    const hostDisplayName = rawStaffName && !isPlaceholderStaffName(rawStaffName, checkpoint.name)
+    const hostDisplayName = rawStaffName && !isPlaceholderStaffName(rawStaffName)
       ? rawStaffName
       : 'Host';
     return {
@@ -362,7 +326,7 @@ export function getActiveCheckpointAssignment(
 
   // 2. Direct checkpoint fields check (assignedStaffUid or real assignedStaffName)
   const rawStaffName = checkpoint.assignedStaffName?.trim();
-  const hasRealStaffName = Boolean(rawStaffName && !isPlaceholderStaffName(rawStaffName, checkpoint.name));
+  const hasRealStaffName = Boolean(rawStaffName && !isPlaceholderStaffName(rawStaffName));
   const hasStaffUid = Boolean(checkpoint.assignedStaffUid && checkpoint.assignedStaffUid.trim() !== '');
 
   if (hasRealStaffName || hasStaffUid) {
@@ -383,7 +347,7 @@ export function getActiveCheckpointAssignment(
     );
     const session = matchingSessions.sort((a, b) => (b.lastSeenAt || b.joinedAt || 0) - (a.lastSeenAt || a.joinedAt || 0))[0];
 
-    if (session && session.staffName && !isPlaceholderStaffName(session.staffName, checkpoint.name)) {
+    if (session && session.staffName && !isPlaceholderStaffName(session.staffName)) {
       return {
         isOccupied: true,
         staffName: session.staffName,
