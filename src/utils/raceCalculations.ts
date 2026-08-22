@@ -392,10 +392,81 @@ export function calculateLiveRunnerProgress(
 
   const lastRecordedEvent = lastRecorded?.event || null;
 
-  // Determine next checkpoint
+  // Determine runner status state and labels
+  let runnerStatusState: 'WAITING_FOR_START' | 'RUNNING' | 'CHECKPOINT_REACHED' | 'FINISHED' = 'WAITING_FOR_START';
+  let runnerStatusLabel = 'WAITING FOR START';
+
+  if (isFinished) {
+    runnerStatusState = 'FINISHED';
+    runnerStatusLabel = 'FINISHED';
+  } else if (isRunning) {
+    if (lastRecordedIndex > 0) {
+      runnerStatusState = 'CHECKPOINT_REACHED';
+      runnerStatusLabel = 'CHECKPOINT REACHED';
+    } else {
+      runnerStatusState = 'RUNNING';
+      runnerStatusLabel = 'RUNNING';
+    }
+  }
+
+  // Current Position Label
+  let currentPositionLabel = 'START LINE';
+  if (isFinished) {
+    currentPositionLabel = 'FINISH LINE';
+  } else if (lastRecorded) {
+    if (lastRecorded.cumulativeDistanceMeters > 0) {
+      currentPositionLabel = `${lastRecorded.checkpoint.name} — ${formatDistance(lastRecorded.cumulativeDistanceMeters, race.displayUnit)}`;
+    } else {
+      currentPositionLabel = lastRecorded.checkpoint.name || 'START LINE';
+    }
+  }
+
+  // Distances
+  const currentDistanceMeters = isFinished
+    ? currentStats.actualDistanceMeters
+    : (lastRecorded ? lastRecorded.cumulativeDistanceMeters : 0);
+  const totalDistanceMeters = race.totalPlannedDistanceMeters;
+  const distanceCoveredFormatted = `${formatDistance(currentDistanceMeters, race.displayUnit)} / ${formatDistance(totalDistanceMeters, race.displayUnit)}`;
+
+  // Pace & Speed metrics
+  let latestPaceFormatted = '—';
+  let latestSpeedFormatted = '—';
+  if (isFinished) {
+    latestPaceFormatted = currentStats.averagePaceFormatted;
+    latestSpeedFormatted = currentStats.averageSpeedFormatted;
+  } else if (lastRecorded?.segment?.segmentPaceFormatted && lastRecorded.segment.segmentPaceFormatted !== '—') {
+    latestPaceFormatted = lastRecorded.segment.segmentPaceFormatted;
+    latestSpeedFormatted = lastRecorded.segment.segmentSpeedFormatted || '—';
+  } else if (currentStats.averagePaceFormatted && currentStats.averagePaceFormatted !== '—') {
+    latestPaceFormatted = currentStats.averagePaceFormatted;
+    latestSpeedFormatted = currentStats.averageSpeedFormatted || '—';
+  }
+
+  // Last Split Time
+  let lastSplitTimeFormatted = '—';
+  if (isFinished) {
+    lastSplitTimeFormatted = formatTimeMs(
+      race.finishTimestamp && race.startTimestamp
+        ? race.finishTimestamp - race.startTimestamp
+        : currentStats.totalTimeMs
+    );
+  } else if (lastRecorded) {
+    lastSplitTimeFormatted = lastRecorded.cumulativeElapsedFormatted;
+  } else if (race.startTimestamp && isRunning) {
+    lastSplitTimeFormatted = '00:00.000';
+  }
+
+  // Last Update Timestamp
+  const lastUpdatedAt = lastRecordedEvent?.timestamp || race.finishTimestamp || race.startTimestamp || race.updatedAt || race.createdAt;
+  const lastUpdatedAtFormatted = lastUpdatedAt
+    ? new Date(lastUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+    : '—';
+
+  // Determine next checkpoint & prediction
   let nextCheckpoint: Checkpoint | null = null;
   let nextPrediction: CheckpointPrediction | null = null;
   let finishPrediction: CheckpointPrediction | null = null;
+  let hasEnoughDataForEta = false;
 
   if (isRunning && !isFinished) {
     if (lastRecordedIndex + 1 < sortedCheckpoints.length) {
@@ -439,6 +510,14 @@ export function calculateLiveRunnerProgress(
         hour12: false
       });
 
+      // Calculate an expected window (e.g. ±15-30s or ±5% window)
+      const windowMarginMs = Math.max(15000, Math.round(estimatedSegmentTimeMs * 0.05));
+      const windowStartDate = new Date(expectedWallClockTimestamp - windowMarginMs);
+      const windowEndDate = new Date(expectedWallClockTimestamp + windowMarginMs);
+      const windowStartFormatted = windowStartDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      const windowEndFormatted = windowEndDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      const expectedWindowFormatted = `~${windowStartFormatted}–${windowEndFormatted}`;
+
       const isFinal = normalizeCheckpointType(targetCp.type) === 'finish' || 
         targetCp.id === sortedCheckpoints[sortedCheckpoints.length - 1].id;
 
@@ -452,17 +531,22 @@ export function calculateLiveRunnerProgress(
         estimatedRaceElapsedMs,
         estimatedRaceElapsedFormatted: formatTimeMs(estimatedRaceElapsedMs),
         expectedWallClockTimeFormatted,
+        expectedWindowFormatted,
         basedOnPaceFormatted: formatPace(paceSecsPerKm),
         basedOnSpeedFormatted: formatSpeed(speedKmh),
         basedOnPaceSecondsPerKm: paceSecsPerKm,
         basedOnSpeedKmh: speedKmh,
         fromCheckpointName: fromName,
-        isFinishLine: isFinal
+        isFinishLine: isFinal,
+        hasEnoughData: true
       };
     };
 
-    if (nextCheckpoint && paceSecsPerKm > 0) {
+    if (nextCheckpoint && paceSecsPerKm > 0 && speedKmh > 0) {
       nextPrediction = calculatePredictionForTarget(nextCheckpoint);
+      if (nextPrediction) {
+        hasEnoughDataForEta = true;
+      }
     }
 
     const finalCheckpoint = sortedCheckpoints[sortedCheckpoints.length - 1];
@@ -476,7 +560,7 @@ export function calculateLiveRunnerProgress(
   if (isFinished) {
     statusText = `Runner Finished Race (${formatTimeMs(race.finishTimestamp && race.startTimestamp ? race.finishTimestamp - race.startTimestamp : currentStats.totalTimeMs)})`;
   } else if (isRunning) {
-    if (lastRecorded) {
+    if (lastRecordedIndex > 0 && lastRecorded) {
       statusText = `Runner reached ${lastRecorded.checkpoint.name}`;
     } else {
       statusText = 'Race Started • Runner en route to first checkpoint';
@@ -485,12 +569,24 @@ export function calculateLiveRunnerProgress(
 
   return {
     statusText,
+    runnerStatusState,
+    runnerStatusLabel,
+    currentPositionLabel,
+    currentDistanceMeters,
+    totalDistanceMeters,
+    distanceCoveredFormatted,
+    latestPaceFormatted,
+    latestSpeedFormatted,
+    lastSplitTimeFormatted,
+    lastUpdatedAt,
+    lastUpdatedAtFormatted,
     lastRecordedCheckpoint: lastRecorded,
     lastRecordedIndex,
     lastRecordedEvent,
     nextCheckpoint,
     nextPrediction,
     finishPrediction,
+    hasEnoughDataForEta,
     isRaceRunning: isRunning,
     isRaceFinished: isFinished,
     recordedCount: currentStats.recordedCheckpointsCount,

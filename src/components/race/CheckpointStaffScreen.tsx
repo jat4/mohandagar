@@ -35,7 +35,6 @@ import {
   Timer, 
   User, 
   Share2, 
-  ArrowLeft, 
   ShieldCheck, 
   Zap, 
   Info, 
@@ -107,22 +106,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
     Boolean(staffName.trim())
   );
 
-  // 1. Back button handler - ONLY performs navigation, NEVER releases assignment
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else if (onExit) {
-      onExit();
-    } else {
-      if (window.history.length > 1) {
-        navigate(-1);
-      } else {
-        navigate('/home');
-      }
-    }
-  };
-
-  // 2. Leave Checkpoint handler - The ONLY explicit action that releases active checkpoint assignment
+  // Leave Checkpoint handler - The ONLY explicit action that releases active checkpoint assignment
   const handleLeaveCheckpoint = async () => {
     hasLeftRef.current = true;
     setLeaving(true);
@@ -404,27 +388,16 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
+            {/* Leave Checkpoint Action (The ONLY explicit exit action) */}
             <button
-              id="btn-staff-back"
-              onClick={handleBack}
-              className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1.5 cursor-pointer transition-colors"
+              id="btn-leave-checkpoint"
+              onClick={() => setShowLeaveModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Release this checkpoint assignment"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Leave Checkpoint</span>
             </button>
-
-            {/* Leave Checkpoint Action (Visible when current user is the assigned staff or host) */}
-            {isCurrentAssignedStaff && (
-              <button
-                id="btn-leave-checkpoint"
-                onClick={() => setShowLeaveModal(true)}
-                className="px-3 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Release this checkpoint assignment"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Leave Checkpoint</span>
-              </button>
-            )}
           </div>
 
           {/* Connection Status Badge */}

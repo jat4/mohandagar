@@ -7,7 +7,6 @@ import React from 'react';
 import { 
   Race, 
   TimingEvent, 
-  Checkpoint, 
   normalizeCheckpointType,
   isRaceRunning,
   isRaceFinished
@@ -26,12 +25,13 @@ import {
   Zap, 
   TrendingUp, 
   Gauge, 
-  UserCheck, 
-  AlertTriangle, 
   Compass,
-  ArrowRight,
-  Sparkles,
-  Info
+  Info,
+  MapPin,
+  Timer,
+  Target,
+  Layers,
+  ArrowRight
 } from 'lucide-react';
 
 interface LiveRaceProgressTimelineProps {
@@ -58,268 +58,436 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
   const isFinished = isRaceFinished(race.status);
 
   const lastRecorded = liveProgress.lastRecordedCheckpoint;
-  const lastRecordedEvent = liveProgress.lastRecordedEvent;
+  const lastRecordedIndex = liveProgress.lastRecordedIndex;
+  const nextCheckpoint = liveProgress.nextCheckpoint;
   const nextPrediction = liveProgress.nextPrediction;
-  const finishPrediction = liveProgress.finishPrediction;
 
-  // Contextual staff alert message
-  const getContextualStaffMessage = () => {
-    if (isFinished) {
-      return {
-        badge: 'RACE FINISHED',
-        badgeColor: 'bg-slate-800 text-slate-300 border-slate-700',
-        title: `Official Finish: ${formatTimeMs(race.finishTimestamp && race.startTimestamp ? race.finishTimestamp - race.startTimestamp : stats.totalTimeMs)}`,
-        subtitle: `Runner ${race.runnerName} completed all course checkpoints.`
-      };
-    }
-
-    if (!isRunning) {
-      return {
-        badge: 'READY TO START',
-        badgeColor: 'bg-amber-950 text-amber-300 border-amber-500/30',
-        title: 'Awaiting Race Start',
-        subtitle: 'Host will trigger the synchronized start countdown.'
-      };
-    }
-
-    // Race is RUNNING
-    if (!lastRecorded) {
-      return {
-        badge: 'RACE IN PROGRESS',
-        badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-500/30',
-        title: `Runner Started • En route to ${stats.processedCheckpoints[0]?.checkpoint.name || 'Checkpoint 1'}`,
-        subtitle: 'Awaiting the first checkpoint split recording.'
-      };
-    }
-
-    // If viewing device is the one that recorded the last checkpoint
-    if (currentCheckpointId && currentCheckpointId === lastRecorded.checkpoint.id) {
-      return {
-        badge: 'RECORDED BY YOU',
-        badgeColor: 'bg-cyan-950 text-cyan-300 border-cyan-500/40',
-        title: `YOU RECORDED ${lastRecorded.checkpoint.name} — ${lastRecorded.cumulativeElapsedFormatted}`,
-        subtitle: `Segment: ${lastRecorded.segment?.segmentElapsedMs ? formatTimeMs(lastRecorded.segment.segmentElapsedMs) : '—'} • Pace: ${lastRecorded.segment?.segmentPaceFormatted || '—'} • Speed: ${lastRecorded.segment?.segmentSpeedFormatted || '—'}`
-      };
-    }
-
-    // If viewing device is an upcoming checkpoint (e.g. CP3)
-    if (currentCheckpointId) {
-      const currentCpIndex = stats.processedCheckpoints.findIndex(c => c.checkpoint.id === currentCheckpointId);
-      const lastRecIndex = liveProgress.lastRecordedIndex;
-
-      if (currentCpIndex > lastRecIndex && currentCpIndex >= 0) {
-        const myCp = stats.processedCheckpoints[currentCpIndex]?.checkpoint;
-        const isFinishDevice = normalizeCheckpointType(myCp?.type) === 'finish';
-
-        if (nextPrediction && nextPrediction.targetCheckpointId === currentCheckpointId) {
-          return {
-            badge: 'RUNNER APPROACHING',
-            badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-500/40',
-            title: `Runner approaching ${myCp.name} — Estimated in ${nextPrediction.estimatedSegmentTimeFormatted}`,
-            subtitle: `Expected arrival at ~${nextPrediction.expectedWallClockTimeFormatted} (Race time ${nextPrediction.estimatedRaceElapsedFormatted}) based on current pace ${nextPrediction.basedOnPaceFormatted}`
-          };
-        }
-
-        if (isFinishDevice && finishPrediction) {
-          return {
-            badge: 'FINISH LINE MONITOR',
-            badgeColor: 'bg-rose-950 text-rose-300 border-rose-500/40',
-            title: `Runner at ${lastRecorded.checkpoint.name} — Estimated arrival at Finish Line ${finishPrediction.estimatedRaceElapsedFormatted}`,
-            subtitle: `Expected at ~${finishPrediction.expectedWallClockTimeFormatted} (~in ${finishPrediction.estimatedSegmentTimeFormatted}) based on ${finishPrediction.basedOnPaceFormatted}`
-          };
-        }
-
+  // Status Badge Colors & Label
+  const getStatusBadgeConfig = () => {
+    switch (liveProgress.runnerStatusState) {
+      case 'FINISHED':
         return {
-          badge: 'AWAITING RUNNER',
-          badgeColor: 'bg-slate-900 text-slate-300 border-slate-800',
-          title: `Runner at ${lastRecorded.checkpoint.name} (${lastRecorded.cumulativeElapsedFormatted})`,
-          subtitle: `En route to your position at ${myCp.name}.`
+          bg: 'bg-slate-800 text-slate-200 border-slate-700',
+          dot: 'bg-slate-400',
+          pulse: false
         };
-      }
+      case 'CHECKPOINT_REACHED':
+        return {
+          bg: 'bg-cyan-950 text-cyan-300 border-cyan-500/40',
+          dot: 'bg-cyan-400',
+          pulse: true
+        };
+      case 'RUNNING':
+        return {
+          bg: 'bg-emerald-950 text-emerald-300 border-emerald-500/40',
+          dot: 'bg-emerald-400',
+          pulse: true
+        };
+      case 'WAITING_FOR_START':
+      default:
+        return {
+          bg: 'bg-amber-950 text-amber-300 border-amber-500/30',
+          dot: 'bg-amber-400',
+          pulse: false
+        };
     }
-
-    // Default Host or general staff message
-    return {
-      badge: 'LIVE RUNNER STATUS',
-      badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-500/30',
-      title: `Runner reached ${lastRecorded.checkpoint.name} — ${lastRecorded.cumulativeElapsedFormatted}`,
-      subtitle: `Recorded by ${lastRecordedEvent?.staffName || 'Checkpoint Staff'} (${lastRecordedEvent?.deviceId || 'Staff Device'})`
-    };
   };
 
-  const contextMessage = getContextualStaffMessage();
+  const statusBadge = getStatusBadgeConfig();
+
+  // Contextual Staff Alert when viewing on a specific checkpoint device
+  const getContextualStaffAlert = () => {
+    if (!currentCheckpointId || isHostView) return null;
+
+    const myCpIndex = stats.processedCheckpoints.findIndex(c => c.checkpoint.id === currentCheckpointId);
+    if (myCpIndex < 0) return null;
+
+    const myCp = stats.processedCheckpoints[myCpIndex]?.checkpoint;
+    const isRecordedAtMyCp = stats.processedCheckpoints[myCpIndex]?.status === 'RECORDED';
+
+    if (isRecordedAtMyCp) {
+      return (
+        <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-xs font-mono text-cyan-200 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>Recorded at your checkpoint (<strong>{myCp.name}</strong>)</span>
+          </div>
+          <span className="text-[11px] text-cyan-300 font-bold">
+            {stats.processedCheckpoints[myCpIndex].cumulativeElapsedFormatted}
+          </span>
+        </div>
+      );
+    }
+
+    if (nextCheckpoint && nextCheckpoint.id === currentCheckpointId && nextPrediction) {
+      return (
+        <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-xs font-mono text-emerald-200 flex items-center justify-between gap-2 animate-pulse">
+          <div className="flex items-center gap-2">
+            <Compass className="w-4 h-4 text-emerald-400 shrink-0 animate-spin" style={{ animationDuration: '4s' }} />
+            <span>Runner approaching your station: <strong>{myCp.name}</strong></span>
+          </div>
+          <span className="text-[11px] text-emerald-300 font-bold">
+            Est: ~{nextPrediction.expectedWallClockTimeFormatted} (~in {nextPrediction.estimatedSegmentTimeFormatted})
+          </span>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const staffAlert = getContextualStaffAlert();
 
   return (
-    <div className={`space-y-4 sm:space-y-6 ${className}`}>
+    <div id="live-runner-progress-container" className={`space-y-4 sm:space-y-6 ${className}`}>
       
-      {/* 1. Real-Time Runner Status Banner */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className={`px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold border ${contextMessage.badgeColor} flex items-center gap-1.5`}>
-              <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
-              <span>{contextMessage.badge}</span>
-            </span>
-            <span className="text-xs font-mono text-slate-400">
-              Runner: <strong className="text-slate-200">{race.runnerName}</strong>
-            </span>
+      {/* Contextual Alert for Checkpoint Staff */}
+      {staffAlert}
+
+      {/* 1. CURRENT RUNNER STATUS CARD */}
+      <div id="runner-status-card" className="bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
+        
+        {/* Card Header: Runner Name, Race Name, Status Badge */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono font-bold uppercase tracking-wider mb-1">
+              <Activity className="w-4 h-4 animate-pulse text-cyan-400" />
+              <span>Live Runner Status</span>
+              <span className="text-slate-600">•</span>
+              <span className="text-slate-400 font-normal">{race.name}</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
+              {race.runnerName}
+            </h2>
           </div>
 
-          <div className="text-xs font-mono text-slate-400">
-            Progress: <strong className="text-cyan-300">{stats.recordedCheckpointsCount}</strong> / {stats.totalCheckpointsCount} CPs
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {/* Status State Badge */}
+            <div className={`px-3 py-1 rounded-full text-xs font-mono font-bold border ${statusBadge.bg} flex items-center gap-2 shadow-sm`}>
+              <span className={`w-2 h-2 rounded-full ${statusBadge.dot} ${statusBadge.pulse ? 'animate-ping' : ''}`} />
+              <span>{liveProgress.runnerStatusLabel}</span>
+            </div>
+
+            {/* Progress Count */}
+            <div className="text-xs font-mono text-slate-400 bg-slate-950 px-3 py-1 rounded-full border border-slate-800">
+              Checkpoints: <strong className="text-cyan-300">{stats.recordedCheckpointsCount}</strong> / {stats.totalCheckpointsCount}
+            </div>
           </div>
         </div>
 
-        <div className="space-y-1">
-          <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
-            <span>{contextMessage.title}</span>
-          </h3>
-          <p className="text-xs sm:text-sm font-mono text-slate-400">
-            {contextMessage.subtitle}
-          </p>
-        </div>
-
-        {/* Most Recent Split Metrics Snapshot */}
-        {lastRecorded && lastRecorded.segment && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-slate-800/80 text-xs font-mono">
-            <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60 text-center">
-              <span className="text-[10px] text-slate-500 block uppercase">Checkpoint</span>
-              <span className="font-bold text-slate-200 truncate block">{lastRecorded.checkpoint.name}</span>
+        {/* Current Position Banner */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-cyan-950 text-cyan-400 border border-cyan-500/30 flex items-center justify-center shrink-0">
+              <MapPin className="w-5 h-5" />
             </div>
-            <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60 text-center">
-              <span className="text-[10px] text-slate-500 block uppercase">Recorded Split</span>
-              <span className="font-bold text-cyan-300 block">{lastRecorded.cumulativeElapsedFormatted}</span>
-            </div>
-            <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60 text-center">
-              <span className="text-[10px] text-slate-500 block uppercase">Segment Pace</span>
-              <span className="font-bold text-amber-300 block">{lastRecorded.segment.segmentPaceFormatted}</span>
-            </div>
-            <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60 text-center">
-              <span className="text-[10px] text-slate-500 block uppercase">Segment Speed</span>
-              <span className="font-bold text-emerald-300 block">{lastRecorded.segment.segmentSpeedFormatted}</span>
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 block">
+                Current Position
+              </span>
+              <strong className="text-sm sm:text-base font-bold text-slate-100">
+                {liveProgress.currentPositionLabel}
+              </strong>
             </div>
           </div>
-        )}
+
+          <div className="text-left sm:text-right font-mono text-xs text-slate-400">
+            <span>Last Update: </span>
+            <strong className="text-slate-200">{liveProgress.lastUpdatedAtFormatted}</strong>
+          </div>
+        </div>
+
+        {/* Metrics Grid: Distance, Pace, Speed, Last Split */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          
+          {/* Distance Covered */}
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 uppercase">
+              <Layers className="w-3 h-3 text-cyan-400" />
+              <span>Distance</span>
+            </div>
+            <div className="text-base sm:text-lg font-mono font-bold text-cyan-300 mt-1 truncate">
+              {liveProgress.distanceCoveredFormatted}
+            </div>
+            <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+              Covered / Total
+            </div>
+          </div>
+
+          {/* Average Pace */}
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 uppercase">
+              <TrendingUp className="w-3 h-3 text-amber-400" />
+              <span>Average Pace</span>
+            </div>
+            <div className="text-base sm:text-lg font-mono font-bold text-amber-300 mt-1 truncate">
+              {liveProgress.latestPaceFormatted}
+            </div>
+            <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+              {isFinished ? 'Overall race pace' : 'Latest measured pace'}
+            </div>
+          </div>
+
+          {/* Average Speed */}
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 uppercase">
+              <Gauge className="w-3 h-3 text-emerald-400" />
+              <span>Average Speed</span>
+            </div>
+            <div className="text-base sm:text-lg font-mono font-bold text-emerald-300 mt-1 truncate">
+              {liveProgress.latestSpeedFormatted}
+            </div>
+            <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+              {isFinished ? 'Overall race speed' : 'Latest measured speed'}
+            </div>
+          </div>
+
+          {/* Last Split Time */}
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 uppercase">
+              <Timer className="w-3 h-3 text-purple-400" />
+              <span>Last Split</span>
+            </div>
+            <div className="text-base sm:text-lg font-mono font-bold text-slate-100 mt-1 truncate">
+              {liveProgress.lastSplitTimeFormatted}
+            </div>
+            <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+              {isFinished ? 'Official finish time' : 'Recorded split time'}
+            </div>
+          </div>
+
+        </div>
+
       </div>
 
-      {/* 2. Next Checkpoint Prediction (Estimated Arrival) */}
-      {isRunning && nextPrediction && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/30 border border-cyan-500/30 shadow-xl space-y-3 relative overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-cyan-400 text-xs font-mono font-bold uppercase tracking-wider">
-              <Compass className="w-4 h-4 animate-spin text-cyan-400" style={{ animationDuration: '6s' }} />
-              <span>Next Checkpoint Prediction</span>
+      {/* 2. NEXT CHECKPOINT & PREDICTED ARRIVAL (When running & not finished) */}
+      {isRunning && !isFinished && nextCheckpoint && (
+        <div id="next-checkpoint-prediction-card" className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/40 border border-cyan-500/30 shadow-xl space-y-4">
+          
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-cyan-500/20">
+            <div className="flex items-center gap-2">
+              <Compass className="w-4 h-4 text-cyan-400 animate-spin" style={{ animationDuration: '8s' }} />
+              <h3 className="text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-cyan-300">
+                Next Checkpoint & Predicted Arrival
+              </h3>
             </div>
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-cyan-950 text-cyan-300 border border-cyan-500/30">
-              ESTIMATED ARRIVAL
+            <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+              {liveProgress.hasEnoughDataForEta ? 'PREDICTED ARRIVAL' : 'AWAITING SPLIT DATA'}
             </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
-              <div className="text-lg sm:text-xl font-black text-slate-100">
-                {nextPrediction.targetCheckpointName}
-                {nextPrediction.isFinishLine && ' 🏁'}
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-cyan-400" />
+                <span className="text-lg sm:text-xl font-black text-slate-100">
+                  {nextCheckpoint.name}
+                  {normalizeCheckpointType(nextCheckpoint.type) === 'finish' && ' 🏁 (Finish Line)'}
+                </span>
               </div>
-              <div className="text-xs font-mono text-cyan-300 mt-0.5">
-                Remaining Distance: <strong>{formatDistance(nextPrediction.remainingDistanceMeters, race.displayUnit)}</strong> (From {nextPrediction.fromCheckpointName})
+              <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-400 mt-1.5">
+                <span>Total Distance: <strong className="text-slate-200">{formatDistance(nextCheckpoint.distanceMeters, race.displayUnit)}</strong></span>
+                <span>•</span>
+                <span>
+                  Remaining: <strong className="text-cyan-300">
+                    {formatDistance(
+                      nextCheckpoint.distanceMeters - (lastRecorded ? lastRecorded.cumulativeDistanceMeters : 0),
+                      race.displayUnit
+                    )}
+                  </strong>
+                </span>
               </div>
             </div>
 
+            {/* ETA Prediction Output */}
             <div className="text-left sm:text-right">
-              <div className="text-[11px] font-mono text-slate-400">Estimated Arrival Time:</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-cyan-300">
-                ~{nextPrediction.expectedWallClockTimeFormatted}
+              {liveProgress.hasEnoughDataForEta && nextPrediction ? (
+                <div>
+                  <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+                    Estimated Arrival:
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-cyan-300 mt-0.5">
+                    ~{nextPrediction.estimatedRaceElapsedFormatted}
+                  </div>
+                  <div className="text-xs font-mono text-slate-300 mt-0.5">
+                    Expected Window: <strong className="text-amber-300 font-bold">{nextPrediction.expectedWindowFormatted || `~${nextPrediction.expectedWallClockTimeFormatted}`}</strong>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-left sm:text-right">
+                  <div className="text-xs font-mono font-bold text-amber-300">
+                    ETA: Not enough data
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                    Awaiting recorded split to calculate ETA
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Breakdown Pills if prediction available */}
+          {liveProgress.hasEnoughDataForEta && nextPrediction && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 border-t border-cyan-500/20 text-xs font-mono">
+              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
+                <span className="text-[10px] text-slate-400 uppercase block">Est. Segment Time</span>
+                <span className="font-bold text-sm sm:text-base text-slate-100 block mt-0.5">
+                  ~{nextPrediction.estimatedSegmentTimeFormatted}
+                </span>
+                <span className="text-[10px] text-slate-500 block">From current checkpoint</span>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
+                <span className="text-[10px] text-slate-400 uppercase block">Expected Clock Time</span>
+                <span className="font-bold text-sm sm:text-base text-cyan-300 block mt-0.5">
+                  ~{nextPrediction.expectedWallClockTimeFormatted}
+                </span>
+                <span className="text-[10px] text-slate-500 block">Authoritative wall-clock</span>
+              </div>
+
+              <div className="col-span-2 sm:col-span-1 p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
+                <span className="text-[10px] text-slate-400 uppercase block">Based on Pace</span>
+                <span className="font-bold text-sm sm:text-base text-amber-300 block mt-0.5">
+                  {nextPrediction.basedOnPaceFormatted}
+                </span>
+                <span className="text-[10px] text-emerald-400 block font-semibold">{nextPrediction.basedOnSpeedFormatted}</span>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Prediction Breakdown */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-3 border-t border-cyan-500/20 text-xs font-mono">
-            <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
-              <span className="text-[10px] text-slate-400 block uppercase">Estimated in</span>
-              <span className="font-bold text-base text-slate-100 block mt-0.5">
-                ~{nextPrediction.estimatedSegmentTimeFormatted}
-              </span>
-              <span className="text-[10px] text-slate-500 block">From last split</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
-              <span className="text-[10px] text-slate-400 block uppercase">Race Elapsed Est.</span>
-              <span className="font-bold text-base text-cyan-300 block mt-0.5">
-                ~{nextPrediction.estimatedRaceElapsedFormatted}
-              </span>
-              <span className="text-[10px] text-slate-500 block">Cumulative race time</span>
-            </div>
-
-            <div className="col-span-2 sm:col-span-1 p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
-              <span className="text-[10px] text-slate-400 block uppercase">Based on Pace</span>
-              <span className="font-bold text-base text-amber-300 block mt-0.5">
-                {nextPrediction.basedOnPaceFormatted}
-              </span>
-              <span className="text-[10px] text-emerald-400 block font-semibold">{nextPrediction.basedOnSpeedFormatted}</span>
-            </div>
-          </div>
-
-          {/* Official Disclaimer Badge */}
-          <div className="pt-2 flex items-start gap-1.5 text-[10px] sm:text-[11px] font-mono text-slate-400">
+          {/* Prediction Disclaimer */}
+          <div className="flex items-start gap-1.5 text-[10px] sm:text-[11px] font-mono text-slate-400 pt-1">
             <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
             <span>
-              <strong>Estimated Arrival</strong> calculated from actual measured segment speed ({nextPrediction.basedOnSpeedFormatted}). This is an estimate for staff coordination, not an official recorded time.
+              <strong>Prediction Rule:</strong> Estimated Arrival is calculated dynamically from recorded split performance (
+              {nextPrediction ? `${nextPrediction.basedOnPaceFormatted}, ${nextPrediction.basedOnSpeedFormatted}` : 'pace & speed'}
+              ). It updates whenever a new official split is recorded.
             </span>
           </div>
+
         </div>
       )}
 
-      {/* 3. Real-Time Checkpoint Progression Timeline */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+      {/* 3. RACE PROGRESS TRACK (Transit/Track Progression) */}
+      <div id="race-progress-track" className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
+        
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div>
-            <h4 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
               <Zap className="w-4 h-4 text-cyan-400" />
-              <span>Race Checkpoint Progress</span>
-            </h4>
+              <span>Race Progress Track</span>
+            </h3>
             <p className="text-[11px] font-mono text-slate-400 mt-0.5">
-              Live progression and recorded timing splits across all race gates
+              Course progression based strictly on recorded authoritative checkpoints
             </p>
           </div>
           <span className="text-xs font-mono text-slate-400">
-            {stats.recordedCheckpointsCount}/{stats.totalCheckpointsCount} Recorded
+            {stats.recordedCheckpointsCount} of {stats.totalCheckpointsCount} Checkpoints Passed
           </span>
         </div>
 
-        {/* Timeline Items */}
-        <div className="space-y-2.5">
-          {/* Start Point */}
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between text-xs font-mono">
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs">
-                ✓
-              </div>
-              <div>
-                <span className="font-bold text-slate-100">START</span>
-                <span className="text-slate-500 text-[11px] ml-2">0 m</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="font-bold text-emerald-400">00:00.000</span>
-              <span className="text-[10px] text-slate-500 block">Race Start</span>
-            </div>
-          </div>
-
-          {/* Checkpoint Steps */}
-          {stats.processedCheckpoints.map((row, idx) => {
-            const isLastRecorded = lastRecorded?.checkpoint.id === row.checkpoint.id;
-            const isThisStaffScreen = currentCheckpointId === row.checkpoint.id;
-            const isFinal = normalizeCheckpointType(row.checkpoint.type) === 'finish';
-            const hasEvent = row.status === 'RECORDED' && row.event;
+        {/* Visual Progression Course */}
+        <div className="space-y-0 relative py-2">
+          
+          {/* START LINE Node */}
+          {(() => {
+            const isStartPassed = Boolean(race.startTimestamp || (lastRecorded && lastRecordedIndex >= 0));
+            const isStartCurrent = isRunning && (!lastRecorded || lastRecordedIndex === 0 && lastRecorded.cumulativeDistanceMeters === 0);
+            const isNext = !isRunning && !isFinished;
 
             return (
-              <div
-                key={row.checkpoint.id}
-                className={`p-3 sm:p-3.5 rounded-xl border transition-all ${
-                  isLastRecorded
-                    ? 'bg-emerald-950/30 border-emerald-500/60 shadow-lg shadow-emerald-500/5'
+              <div className="relative">
+                {/* Node Row */}
+                <div className={`p-3 sm:p-3.5 rounded-xl border transition-all ${
+                  isStartCurrent
+                    ? 'bg-cyan-950/30 border-cyan-500/60 shadow-lg shadow-cyan-500/10'
+                    : isStartPassed
+                    ? 'bg-slate-950/70 border-slate-800/90'
+                    : 'bg-slate-950/40 border-slate-800/50'
+                }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      {/* Visual Track Indicator */}
+                      <div className="shrink-0">
+                        {isStartCurrent ? (
+                          <div className="w-7 h-7 rounded-full bg-cyan-400 text-slate-950 font-black text-xs flex items-center justify-center shadow-md shadow-cyan-400/30">
+                            ●
+                          </div>
+                        ) : isStartPassed ? (
+                          <div className="w-7 h-7 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/50 flex items-center justify-center font-bold text-xs">
+                            ✓
+                          </div>
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-slate-900 text-slate-500 border border-slate-800 flex items-center justify-center font-bold text-xs">
+                            ○
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-slate-100 text-xs sm:text-sm">
+                            START LINE
+                          </span>
+                          
+                          {isStartCurrent && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-black bg-cyan-400 text-slate-950 animate-pulse">
+                              ● CURRENT POSITION
+                            </span>
+                          )}
+
+                          {!isRunning && !isFinished && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-950 text-amber-300 border border-amber-500/30">
+                              AWAITING START
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                          Distance: <strong className="text-slate-300">0 m</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-left sm:text-right pl-10 sm:pl-0 font-mono text-xs">
+                      {isStartPassed ? (
+                        <div>
+                          <div className="font-bold text-emerald-400">00:00.000</div>
+                          <span className="text-[10px] text-slate-500">Race Start</span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-500 font-mono">—</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vertical Track Connector */}
+                <div className="w-7 flex justify-center py-1.5">
+                  <div className={`w-0.5 h-6 ${isStartPassed ? 'bg-emerald-500/60' : 'bg-slate-800'}`} />
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Dynamically Rendered Checkpoints from Race Configuration */}
+          {stats.processedCheckpoints.map((row, idx) => {
+            const isLast = idx === stats.processedCheckpoints.length - 1;
+            const hasEvent = row.status === 'RECORDED' && Boolean(row.event);
+            const isCurrentPos = lastRecorded?.checkpoint.id === row.checkpoint.id && isRunning;
+            const isNext = nextCheckpoint?.id === row.checkpoint.id && isRunning;
+            const isFinal = normalizeCheckpointType(row.checkpoint.type) === 'finish' || isLast;
+            const isThisStaffScreen = currentCheckpointId === row.checkpoint.id;
+
+            return (
+              <div key={row.checkpoint.id} className="relative">
+                
+                {/* Node Row */}
+                <div className={`p-3 sm:p-3.5 rounded-xl border transition-all ${
+                  isCurrentPos
+                    ? 'bg-cyan-950/30 border-cyan-500/60 shadow-lg shadow-cyan-500/10'
+                    : isNext
+                    ? 'bg-slate-900 border-cyan-500/30'
                     : hasEvent
                     ? 'bg-slate-950/70 border-slate-800/90'
                     : row.status === 'MISSED'
@@ -327,109 +495,132 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
                     : isThisStaffScreen
                     ? 'bg-slate-900 border-cyan-500/40'
                     : 'bg-slate-950/40 border-slate-800/50'
-                }`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  
-                  {/* Left: Checkpoint Name & Status */}
-                  <div className="flex items-start sm:items-center gap-2.5 min-w-0">
-                    <div className="shrink-0 mt-0.5 sm:mt-0">
-                      {hasEvent ? (
-                        <div className="w-6 h-6 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs">
-                          ✓
-                        </div>
-                      ) : row.status === 'MISSED' ? (
-                        <div className="w-6 h-6 rounded-full bg-amber-950 text-amber-400 border border-amber-500/40 flex items-center justify-center font-bold text-xs">
-                          !
-                        </div>
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-slate-900 text-slate-500 border border-slate-800 flex items-center justify-center font-bold text-xs">
-                          ○
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-bold text-slate-100 text-xs sm:text-sm truncate">
-                          {row.checkpoint.name}
-                        </span>
-                        
-                        {isFinal && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-500/30">
-                            FINISH
-                          </span>
-                        )}
-
-                        {isLastRecorded && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-black bg-emerald-400 text-slate-950 animate-pulse">
-                            LAST RECORDED
-                          </span>
-                        )}
-
-                        {isThisStaffScreen && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/30">
-                            YOUR POSITION
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-[11px] font-mono text-slate-400 flex flex-wrap items-center gap-2 mt-0.5">
-                        <span>Distance: <strong className="text-slate-300">{formatDistance(row.checkpoint.distanceMeters, race.displayUnit)}</strong></span>
-                        {row.event?.staffName && (
-                          <>
-                            <span>•</span>
-                            <span className="text-slate-400">Staff: <strong className="text-slate-300">{row.event.staffName}</strong></span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Metrics & Status */}
-                  <div className="text-left sm:text-right pl-8 sm:pl-0 font-mono text-xs">
-                    {hasEvent ? (
-                      <div>
-                        <div className="font-bold text-sm sm:text-base text-cyan-300">
-                          {row.cumulativeElapsedFormatted}
-                        </div>
-                        {row.segment && (
-                          <div className="text-[10px] text-slate-400 flex sm:justify-end gap-2 mt-0.5">
-                            <span>Seg: <strong className="text-slate-300">{formatTimeMs(row.segment.segmentElapsedMs)}</strong></span>
-                            <span>•</span>
-                            <span className="text-amber-300 font-semibold">{row.segment.segmentPaceFormatted}</span>
-                            <span>•</span>
-                            <span className="text-emerald-300 font-semibold">{row.segment.segmentSpeedFormatted}</span>
+                }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    
+                    {/* Left: Indicator + Name */}
+                    <div className="flex items-center gap-3">
+                      <div className="shrink-0">
+                        {isCurrentPos ? (
+                          <div className="w-7 h-7 rounded-full bg-cyan-400 text-slate-950 font-black text-xs flex items-center justify-center shadow-md shadow-cyan-400/30">
+                            ●
+                          </div>
+                        ) : hasEvent ? (
+                          <div className="w-7 h-7 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/50 flex items-center justify-center font-bold text-xs">
+                            ✓
+                          </div>
+                        ) : isNext ? (
+                          <div className="w-7 h-7 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-400 flex items-center justify-center font-bold text-xs">
+                            ○
+                          </div>
+                        ) : row.status === 'MISSED' ? (
+                          <div className="w-7 h-7 rounded-full bg-amber-950 text-amber-400 border border-amber-500/40 flex items-center justify-center font-bold text-xs">
+                            !
+                          </div>
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-slate-900 text-slate-500 border border-slate-800 flex items-center justify-center font-bold text-xs">
+                            ○
                           </div>
                         )}
                       </div>
-                    ) : row.status === 'MISSED' ? (
-                      <div>
-                        <span className="px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40 text-[10px] font-bold">
-                          MISSED (NO SPLIT)
-                        </span>
-                        <div className="text-[10px] text-slate-500 mt-0.5">Skipped during race</div>
-                      </div>
-                    ) : nextPrediction && nextPrediction.targetCheckpointId === row.checkpoint.id ? (
-                      <div>
-                        <div className="text-cyan-300 font-bold text-xs">
-                          Est: ~{nextPrediction.expectedWallClockTimeFormatted}
-                        </div>
-                        <span className="px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 text-[10px] font-bold">
-                          APPROACHING
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-400 text-[10px] font-bold border border-slate-800">
-                        {row.status === 'PENDING' ? 'PENDING' : 'UPCOMING'}
-                      </span>
-                    )}
-                  </div>
 
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-slate-100 text-xs sm:text-sm">
+                            {row.checkpoint.name}
+                          </span>
+
+                          {isFinal && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-500/30">
+                              FINISH LINE
+                            </span>
+                          )}
+
+                          {isCurrentPos && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-black bg-cyan-400 text-slate-950 animate-pulse">
+                              ● CURRENT POSITION
+                            </span>
+                          )}
+
+                          {isNext && !isCurrentPos && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                              ○ NEXT CHECKPOINT
+                            </span>
+                          )}
+
+                          {isThisStaffScreen && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/30">
+                              YOUR STATION
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] font-mono text-slate-400 flex flex-wrap items-center gap-2 mt-0.5">
+                          <span>Distance: <strong className="text-slate-300">{formatDistance(row.checkpoint.distanceMeters, race.displayUnit)}</strong></span>
+                          {row.event?.staffName && (
+                            <>
+                              <span>•</span>
+                              <span>Staff: <strong className="text-slate-300">{row.event.staffName}</strong></span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Metrics & Split Status */}
+                    <div className="text-left sm:text-right pl-10 sm:pl-0 font-mono text-xs">
+                      {hasEvent ? (
+                        <div>
+                          <div className="font-bold text-sm sm:text-base text-cyan-300">
+                            {row.cumulativeElapsedFormatted}
+                          </div>
+                          {row.segment && (
+                            <div className="text-[10px] text-slate-400 flex sm:justify-end gap-2 mt-0.5">
+                              <span>Seg: <strong className="text-slate-300">{formatTimeMs(row.segment.segmentElapsedMs)}</strong></span>
+                              <span>•</span>
+                              <span className="text-amber-300 font-semibold">{row.segment.segmentPaceFormatted}</span>
+                              <span>•</span>
+                              <span className="text-emerald-300 font-semibold">{row.segment.segmentSpeedFormatted}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : row.status === 'MISSED' ? (
+                        <div>
+                          <span className="px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40 text-[10px] font-bold">
+                            MISSED (NO SPLIT)
+                          </span>
+                          <div className="text-[10px] text-slate-500 mt-0.5">Skipped during race</div>
+                        </div>
+                      ) : isNext && nextPrediction ? (
+                        <div>
+                          <div className="text-cyan-300 font-bold text-xs">
+                            Est: ~{nextPrediction.expectedWallClockTimeFormatted}
+                          </div>
+                          <span className="text-[10px] text-slate-400">
+                            ~{nextPrediction.estimatedRaceElapsedFormatted} elapsed
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-500 text-[10px] font-bold border border-slate-800">
+                          {row.status === 'PENDING' ? 'PENDING' : 'UPCOMING'}
+                        </span>
+                      )}
+                    </div>
+
+                  </div>
                 </div>
+
+                {/* Vertical Track Connector (if not final checkpoint) */}
+                {!isLast && (
+                  <div className="w-7 flex justify-center py-1.5">
+                    <div className={`w-0.5 h-6 ${hasEvent ? 'bg-emerald-500/60' : 'bg-slate-800'}`} />
+                  </div>
+                )}
+
               </div>
             );
           })}
+
         </div>
 
       </div>
@@ -437,3 +628,4 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
     </div>
   );
 };
+

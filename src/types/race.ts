@@ -242,22 +242,38 @@ export interface CheckpointPrediction {
   estimatedRaceElapsedMs: number;
   estimatedRaceElapsedFormatted: string; // e.g. "00:12.100"
   expectedWallClockTimeFormatted: string; // e.g. "18:42:31"
+  expectedWindowFormatted?: string; // e.g. "18:40–18:45"
   basedOnPaceFormatted: string; // e.g. "3:14/km"
   basedOnSpeedFormatted: string; // e.g. "18.50 km/h"
   basedOnPaceSecondsPerKm: number;
   basedOnSpeedKmh: number;
   fromCheckpointName: string;
   isFinishLine: boolean;
+  hasEnoughData?: boolean;
 }
+
+export type RunnerStatusStateType = 'WAITING_FOR_START' | 'RUNNING' | 'CHECKPOINT_REACHED' | 'FINISHED';
 
 export interface LiveRunnerProgress {
   statusText: string;
+  runnerStatusState: RunnerStatusStateType;
+  runnerStatusLabel: string;
+  currentPositionLabel: string;
+  currentDistanceMeters: number;
+  totalDistanceMeters: number;
+  distanceCoveredFormatted: string;
+  latestPaceFormatted: string;
+  latestSpeedFormatted: string;
+  lastSplitTimeFormatted: string;
+  lastUpdatedAt?: number;
+  lastUpdatedAtFormatted: string;
   lastRecordedCheckpoint: ProcessedCheckpointResult | null;
   lastRecordedIndex: number;
   lastRecordedEvent: TimingEvent | null;
   nextCheckpoint: Checkpoint | null;
   nextPrediction: CheckpointPrediction | null;
   finishPrediction: CheckpointPrediction | null;
+  hasEnoughDataForEta: boolean;
   isRaceRunning: boolean;
   isRaceFinished: boolean;
   recordedCount: number;
