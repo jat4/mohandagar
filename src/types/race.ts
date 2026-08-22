@@ -342,6 +342,9 @@ export function getActiveCheckpointAssignment(
     return { isOccupied: false, staffName: '' };
   }
 
+  const normType = normalizeCheckpointType(checkpoint.type);
+  const isStart = normType === 'start' || checkpoint.isStart || (checkpoint.distanceMeters === 0 && checkpoint.name?.toUpperCase().includes('START'));
+
   // 1. Host assignment check
   if (checkpoint.isHostAssigned) {
     const rawStaffName = checkpoint.assignedStaffName?.trim();
@@ -374,7 +377,12 @@ export function getActiveCheckpointAssignment(
 
   // 3. Active staff sessions in Firestore (from live connected devices)
   if (staffSessions && staffSessions.length > 0) {
-    const session = staffSessions.find(s => s.checkpointId === checkpoint.id);
+    const matchingSessions = staffSessions.filter(s => 
+      s.checkpointId === checkpoint.id || 
+      (isStart && (s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START')))
+    );
+    const session = matchingSessions.sort((a, b) => (b.lastSeenAt || b.joinedAt || 0) - (a.lastSeenAt || a.joinedAt || 0))[0];
+
     if (session && session.staffName && !isPlaceholderStaffName(session.staffName, checkpoint.name)) {
       return {
         isOccupied: true,

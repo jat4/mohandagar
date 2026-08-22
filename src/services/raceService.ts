@@ -385,7 +385,10 @@ export class RaceService {
 
         const race = raceSnap.data() as Race;
         const checkpoints = race.checkpoints || [];
-        const targetCp = checkpoints.find((c) => c.id === checkpointId);
+        const targetCp = checkpoints.find((c) => 
+          c.id === checkpointId || 
+          (checkpointId === 'START' && (c.isStart || normalizeCheckpointType(c.type) === 'start' || (c.distanceMeters === 0 && c.name?.toUpperCase().includes('START'))))
+        );
 
         if (!targetCp) {
           throw new Error('Checkpoint not found in this race.');
@@ -408,7 +411,7 @@ export class RaceService {
 
         // Update checkpoints: only the selected checkpoint has isHostAssigned = true
         const updatedCheckpoints = checkpoints.map((cp) => {
-          if (cp.id === checkpointId) {
+          if (cp.id === targetCp.id) {
             return {
               ...cp,
               isHostAssigned: true,
@@ -432,7 +435,7 @@ export class RaceService {
 
         transaction.update(raceRef, {
           checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
-          hostAssignedCheckpointId: checkpointId,
+          hostAssignedCheckpointId: targetCp.id,
           updatedAt: now
         });
 
@@ -533,7 +536,10 @@ export class RaceService {
 
         const race = raceSnap.data() as Race;
         const checkpoints = race.checkpoints || [];
-        const targetCp = checkpoints.find((c) => c.id === params.checkpointId);
+        const targetCp = checkpoints.find((c) => 
+          c.id === params.checkpointId ||
+          (params.checkpointId === 'START' && (c.isStart || normalizeCheckpointType(c.type) === 'start' || (c.distanceMeters === 0 && c.name?.toUpperCase().includes('START'))))
+        );
 
         if (!targetCp) {
           throw new Error('Checkpoint not found in this race.');
@@ -572,7 +578,7 @@ export class RaceService {
 
         // Atomically update checkpoint assignment to vacant/available
         const updatedCheckpoints = checkpoints.map((cp) => {
-          if (cp.id === params.checkpointId) {
+          if (cp.id === targetCp.id) {
             return {
               ...cp,
               assignedStaffName: '',
@@ -589,7 +595,7 @@ export class RaceService {
           updatedAt: now
         };
 
-        if (race.hostAssignedCheckpointId === params.checkpointId) {
+        if (race.hostAssignedCheckpointId === targetCp.id || race.hostAssignedCheckpointId === params.checkpointId) {
           updatePayload.hostAssignedCheckpointId = null;
         }
 
@@ -648,7 +654,10 @@ export class RaceService {
 
         const race = raceSnap.data() as Race;
         const checkpoints = race.checkpoints || [];
-        const targetCp = checkpoints.find((c) => c.id === params.checkpointId);
+        const targetCp = checkpoints.find((c) => 
+          c.id === params.checkpointId ||
+          (params.checkpointId === 'START' && (c.isStart || normalizeCheckpointType(c.type) === 'start' || (c.distanceMeters === 0 && c.name?.toUpperCase().includes('START'))))
+        );
 
         if (!targetCp) {
           throw new Error('Checkpoint not found in this race.');
@@ -688,7 +697,7 @@ export class RaceService {
 
         // 3. Atomically update checkpoint assignment in race doc
         const updatedCheckpoints = checkpoints.map((cp) => {
-          if (cp.id === params.checkpointId) {
+          if (cp.id === targetCp.id) {
             return {
               ...cp,
               assignedStaffName: claimantName,
@@ -706,7 +715,7 @@ export class RaceService {
         });
 
         // 4. Record staffSession for real-time heartbeat and presence
-        const sessionId = `session_${params.checkpointId}_${claimantUid || claimantName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const sessionId = `session_${targetCp.id}_${claimantUid || claimantName.replace(/[^a-zA-Z0-9]/g, '_')}`;
         const sessionRef = doc(db, 'races', params.raceId, 'staffSessions', sessionId);
         const session: StaffSession = {
           id: sessionId,

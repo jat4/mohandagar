@@ -356,10 +356,11 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                 const activeAssignment = getActiveCheckpointAssignment(row.checkpoint, staffSessions);
                 const isHost = activeAssignment.isHost;
 
-                let session = sessionByCheckpoint.get(row.checkpoint.id);
-                if (!session && isStartOnly) {
-                  session = staffSessions.find(s => s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START'));
-                }
+                const matchingSessions = staffSessions.filter(s => 
+                  s.checkpointId === row.checkpoint.id || 
+                  (isStartOnly && (s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START')))
+                );
+                const session = matchingSessions.sort((a, b) => (b.lastSeenAt || b.joinedAt || 0) - (a.lastSeenAt || a.joinedAt || 0))[0];
 
                 const isOnline = Boolean(
                   session &&
