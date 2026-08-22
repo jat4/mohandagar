@@ -4,7 +4,9 @@ import {
   TimingEvent, 
   StaffSession, 
   Checkpoint,
-  normalizeCheckpointType
+  normalizeCheckpointType,
+  getActiveCheckpointAssignment,
+  hasValidActiveAssignment
 } from '../../types/race';
 import { RaceService } from '../../services/raceService';
 import { useTimeSync, TimeSyncService } from '../../services/timeSyncService';
@@ -344,20 +346,19 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                 const isStartOnly = normType === 'start' || row.checkpoint.isStart;
                 const isFinishOnly = !isStartOnly && normType === 'finish';
                 const isSplitFinish = !isStartOnly && normType === 'splitFinish';
-                const isHost = row.checkpoint.isHostAssigned;
+
+                const activeAssignment = getActiveCheckpointAssignment(row.checkpoint, staffSessions);
+                const isHost = activeAssignment.isHost;
 
                 let session = sessionByCheckpoint.get(row.checkpoint.id);
                 if (!session && isStartOnly) {
                   session = staffSessions.find(s => s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START'));
                 }
-                if (!session && row.checkpoint.assignedStaffName) {
-                  session = staffSessions.find(s => s.staffName && s.staffName.trim().toLowerCase() === row.checkpoint.assignedStaffName?.trim().toLowerCase());
-                }
 
-                const isOnline = session && (
+                const isOnline = Boolean(session && (
                   Math.abs(now - (session.lastSeenAt || 0)) < 60000 || 
                   Math.abs(Date.now() - (session.lastSeenAt || 0)) < 60000
-                );
+                ));
 
                 return (
                   <tr 
@@ -399,28 +400,30 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                     </td>
 
                     <td className="py-3.5 px-4">
-                      {isHost ? (
-                        <div>
-                          <div className="font-bold text-amber-300 flex items-center gap-1">
-                            <UserCheck className="w-3.5 h-3.5 text-amber-400" />
-                            <span>{row.checkpoint.assignedStaffName || 'Host'}</span>
+                      {activeAssignment.isOccupied ? (
+                        isHost ? (
+                          <div>
+                            <div className="font-bold text-amber-300 flex items-center gap-1">
+                              <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+                              <span>{activeAssignment.staffName}</span>
+                            </div>
+                            <div className="text-[10px] text-amber-400/80 font-mono">Host Timing Gate</div>
                           </div>
-                          <div className="text-[10px] text-amber-400/80 font-mono">Host Timing Gate</div>
-                        </div>
-                      ) : session ? (
-                        <div>
-                          <div className="font-bold text-slate-200">{session.staffName}</div>
-                          <div className="text-[10px] text-slate-400">{session.deviceName}</div>
-                        </div>
+                        ) : (
+                          <div>
+                            <div className="font-bold text-slate-200">{activeAssignment.staffName}</div>
+                            <div className="text-[10px] text-slate-400">{activeAssignment.deviceName || session?.deviceName || 'Staff Device'}</div>
+                          </div>
+                        )
                       ) : (
-                        <span className="text-slate-500 italic">
-                          {row.checkpoint.assignedStaffName || 'Unassigned'}
-                        </span>
+                        <span className="text-slate-600 text-sm">—</span>
                       )}
                     </td>
 
                     <td className="py-3.5 px-4">
-                      {isHost ? (
+                      {!activeAssignment.isOccupied ? (
+                        <span className="text-slate-600 text-[11px]">No Device</span>
+                      ) : isHost ? (
                         <span className="px-2.5 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold inline-flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
                           <span>HOST DEVICE</span>
@@ -436,7 +439,7 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                           <span>OFFLINE</span>
                         </span>
                       ) : (
-                        <span className="text-slate-600 text-[11px]">No Device</span>
+                        <span className="text-slate-600 text-[11px]">Standby</span>
                       )}
                     </td>
 

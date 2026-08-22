@@ -31,7 +31,10 @@ import {
   PublicationStatus,
   normalizeCheckpointType,
   isSplitAllowed,
-  isFinishAllowed
+  isFinishAllowed,
+  isPlaceholderStaffName,
+  getActiveCheckpointAssignment,
+  hasValidActiveAssignment
 } from '../types/race';
 import { generateJoinCode, calculateRaceStatistics } from '../utils/raceCalculations';
 import { TimeSyncService } from './timeSyncService';
@@ -104,8 +107,7 @@ export class RaceService {
       startCpInput = {
         name: 'START LINE',
         distanceMeters: 0,
-        type: 'start',
-        assignedStaffName: 'Start Line'
+        type: 'start'
       };
     }
 
@@ -125,8 +127,7 @@ export class RaceService {
       finishCpInput = {
         name: 'FINISH LINE',
         distanceMeters: input.totalPlannedDistanceMeters,
-        type: 'finish',
-        assignedStaffName: 'Finish Line'
+        type: 'finish'
       };
     }
 
@@ -136,21 +137,27 @@ export class RaceService {
         distanceMeters: 0,
         type: 'start' as CheckpointType,
         isStart: true,
-        assignedStaffName: startCpInput.assignedStaffName || 'Start Line'
+        assignedStaffName: startCpInput.assignedStaffName && !isPlaceholderStaffName(startCpInput.assignedStaffName, 'START LINE')
+          ? startCpInput.assignedStaffName.trim()
+          : ''
       },
       ...middleWithoutFinish.map((cp, idx) => ({
         name: cp.name.trim() || `CP ${idx + 1}`,
         distanceMeters: cp.distanceMeters,
         type: (normalizeCheckpointType(cp.type) === 'splitOnly' ? 'splitOnly' : 'splitFinish') as CheckpointType,
         isStart: false,
-        assignedStaffName: cp.assignedStaffName?.trim() || ''
+        assignedStaffName: cp.assignedStaffName && !isPlaceholderStaffName(cp.assignedStaffName, cp.name)
+          ? cp.assignedStaffName.trim()
+          : ''
       })),
       {
         name: finishCpInput.name.trim() || 'FINISH LINE',
         distanceMeters: input.totalPlannedDistanceMeters,
         type: 'finish' as CheckpointType,
         isStart: false,
-        assignedStaffName: finishCpInput.assignedStaffName?.trim() || 'Finish Line'
+        assignedStaffName: finishCpInput.assignedStaffName && !isPlaceholderStaffName(finishCpInput.assignedStaffName, 'FINISH LINE')
+          ? finishCpInput.assignedStaffName.trim()
+          : ''
       }
     ];
 
@@ -164,7 +171,7 @@ export class RaceService {
         type: cp.type,
         isStart: cp.isStart,
         joinCode,
-        assignedStaffName: cp.assignedStaffName
+        assignedStaffName: cp.assignedStaffName || ''
       };
     });
 
@@ -388,15 +395,13 @@ export class RaceService {
         const name = hostName || user?.displayName || user?.email?.split('@')[0] || 'Host';
 
         // Check if target checkpoint is ALREADY claimed by another staff member (who is not the host)
-        const currentAssignedName = targetCp.assignedStaffName?.trim();
-        const currentAssignedUid = targetCp.assignedStaffUid?.trim();
+        const activeAssignment = getActiveCheckpointAssignment(targetCp);
 
-        if (!targetCp.isHostAssigned && currentAssignedName && currentAssignedName !== '') {
-          // If assigned to a staff member who is not this host
-          const isSameHost = (currentAssignedUid === uid) || currentAssignedName.includes('(Host)');
+        if (activeAssignment.isOccupied && !targetCp.isHostAssigned) {
+          const isSameHost = (targetCp.assignedStaffUid === uid) || (activeAssignment.staffName.includes('(Host)'));
           if (!isSameHost) {
             throw new Error(
-              `${targetCp.name} is currently assigned to ${currentAssignedName}. You cannot assign yourself to this checkpoint until the current staff member leaves.`
+              `${targetCp.name} is currently assigned to ${activeAssignment.staffName}. You cannot assign yourself to this checkpoint until the current staff member leaves.`
             );
           }
         }
@@ -540,29 +545,28 @@ export class RaceService {
           (user && user.uid === race.hostUid)
         );
 
-        const currentStaffName = targetCp.assignedStaffName?.trim() || '';
-        const currentStaffUid = targetCp.assignedStaffUid?.trim() || '';
+        const activeAssignment = getActiveCheckpointAssignment(targetCp);
 
         // If not assigned to anyone, it is already released
-        if (!currentStaffName && !targetCp.isHostAssigned) {
+        if (!activeAssignment.isOccupied) {
           return;
         }
 
         // Verify ownership: Only the assigned staff member or Host can release their own assignment
         if (targetCp.isHostAssigned) {
-          const isHostOwner = isCallerHost || (callerUid && currentStaffUid === callerUid) || callerName.includes('(Host)');
+          const isHostOwner = isCallerHost || (callerUid && targetCp.assignedStaffUid === callerUid) || callerName.includes('(Host)');
           if (!isHostOwner) {
             throw new Error(`You cannot leave a checkpoint assigned to the Host.`);
           }
         } else {
           const isStaffOwner = Boolean(
-            (callerUid && currentStaffUid && callerUid === currentStaffUid) ||
-            (callerName && currentStaffName && callerName.toLowerCase() === currentStaffName.toLowerCase()) ||
-            (isCallerHost && (currentStaffUid === callerUid || currentStaffName.includes('(Host)')))
+            (callerUid && targetCp.assignedStaffUid && callerUid === targetCp.assignedStaffUid) ||
+            (callerName && activeAssignment.staffName && callerName.toLowerCase() === activeAssignment.staffName.toLowerCase()) ||
+            (isCallerHost)
           );
 
           if (!isStaffOwner) {
-            throw new Error(`You cannot leave this checkpoint because it is assigned to ${currentStaffName}. Only ${currentStaffName} can release this assignment.`);
+            throw new Error(`You cannot leave this checkpoint because it is assigned to ${activeAssignment.staffName}. Only ${activeAssignment.staffName} can release this assignment.`);
           }
         }
 
@@ -655,25 +659,27 @@ export class RaceService {
           (auth.currentUser && auth.currentUser.uid === race.hostUid)
         );
 
+        const activeAssignment = getActiveCheckpointAssignment(targetCp);
+
         // 1. Check if locked/assigned by Host
         if (targetCp.isHostAssigned && !isClaimantHost) {
           throw new Error(
-            `Checkpoint ${targetCp.name} is currently assigned to ${targetCp.assignedStaffName || 'Host'}. You cannot join this checkpoint until the current staff member leaves.`
+            `Checkpoint ${targetCp.name} is currently assigned to ${activeAssignment.staffName || 'Host'}. You cannot join this checkpoint until the current staff member leaves.`
           );
         }
 
         // 2. Check if already occupied by another staff member / device
-        const currentStaffName = targetCp.assignedStaffName?.trim();
-        const currentStaffUid = targetCp.assignedStaffUid?.trim();
+        if (activeAssignment.isOccupied) {
+          const currentStaffName = activeAssignment.staffName.trim();
+          const currentStaffUid = targetCp.assignedStaffUid?.trim();
 
-        if (currentStaffName && currentStaffName !== '') {
-          // Verify if this is the SAME user/device re-connecting or refreshing
           const isSameUser = Boolean(
             (claimantUid && currentStaffUid && claimantUid === currentStaffUid) ||
-            (currentStaffName.toLowerCase() === claimantName.toLowerCase())
+            (currentStaffName.toLowerCase() === claimantName.toLowerCase()) ||
+            isClaimantHost
           );
 
-          if (!isSameUser && !isClaimantHost) {
+          if (!isSameUser) {
             throw new Error(
               `Checkpoint ${targetCp.name} is currently assigned to ${currentStaffName}. You cannot join this checkpoint until the current staff member leaves.`
             );

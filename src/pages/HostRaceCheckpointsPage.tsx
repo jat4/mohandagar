@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { RaceService } from '../services/raceService';
 import { TimeSyncService } from '../services/timeSyncService';
-import { Race, Checkpoint, StaffSession, normalizeCheckpointType } from '../types/race';
+import { Race, Checkpoint, StaffSession, normalizeCheckpointType, getActiveCheckpointAssignment, hasValidActiveAssignment, formatCleanErrorMessage } from '../types/race';
 import { formatDistance } from '../utils/raceCalculations';
 import { QrCodeModal } from '../components/race/QrCodeModal';
 import { 
@@ -149,20 +149,19 @@ export const HostRaceCheckpointsPage: React.FC = () => {
           const isStartOnly = normType === 'start' || cp.isStart;
           const isFinishOnly = !isStartOnly && normType === 'finish';
           const isSplitFinish = !isStartOnly && normType === 'splitFinish';
-          const isHost = cp.isHostAssigned;
+
+          const activeAssignment = getActiveCheckpointAssignment(cp, staffSessions);
+          const isHost = activeAssignment.isHost;
 
           let session = staffSessions.find(s => s.checkpointId === cp.id);
           if (!session && isStartOnly) {
             session = staffSessions.find(s => s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START'));
           }
-          if (!session && cp.assignedStaffName) {
-            session = staffSessions.find(s => s.staffName && s.staffName.trim().toLowerCase() === cp.assignedStaffName?.trim().toLowerCase());
-          }
 
-          const isOnline = session && (
+          const isOnline = Boolean(session && (
             Math.abs(Date.now() - (session.lastSeenAt || 0)) < 60000 ||
             Math.abs(TimeSyncService.now() - (session.lastSeenAt || 0)) < 60000
-          );
+          ));
 
           return (
             <div
@@ -251,14 +250,27 @@ export const HostRaceCheckpointsPage: React.FC = () => {
                 <div className="flex items-center gap-1.5">
                   <Smartphone className="w-3.5 h-3.5 text-slate-500" />
                   <span>
-                    Staff: <strong className="text-slate-200">{isHost ? `👑 Host (${cp.assignedStaffName || 'Host'})` : session?.staffName || cp.assignedStaffName || 'Unassigned'}</strong>
+                    Staff:{' '}
+                    {activeAssignment.isOccupied ? (
+                      <strong className="text-slate-200">
+                        {isHost ? `👑 Host (${activeAssignment.staffName})` : activeAssignment.staffName}
+                      </strong>
+                    ) : (
+                      <strong className="text-slate-500">— (Unassigned)</strong>
+                    )}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${isHost ? 'bg-cyan-400 animate-pulse' : isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
-                  <span className={isHost ? 'text-cyan-300 font-bold' : isOnline ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                    {isHost ? 'Host Gate' : isOnline ? 'Device Live' : 'Standby'}
+                  <span className={`w-2 h-2 rounded-full ${
+                    !activeAssignment.isOccupied ? 'bg-slate-700' : (isHost ? 'bg-cyan-400 animate-pulse' : isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-500')
+                  }`} />
+                  <span className={
+                    !activeAssignment.isOccupied 
+                      ? 'text-slate-500' 
+                      : (isHost ? 'text-cyan-300 font-bold' : isOnline ? 'text-emerald-400 font-bold' : 'text-amber-400 font-medium')
+                  }>
+                    {!activeAssignment.isOccupied ? 'No Device' : (isHost ? 'Host Gate' : isOnline ? 'Device Live' : 'Standby')}
                   </span>
                 </div>
               </div>

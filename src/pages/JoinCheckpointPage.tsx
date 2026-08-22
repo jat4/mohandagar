@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { RaceService } from '../services/raceService';
 import { auth } from '../lib/firebase';
-import { Race, Checkpoint, normalizeCheckpointType } from '../types/race';
+import { Race, Checkpoint, normalizeCheckpointType, getActiveCheckpointAssignment, formatCleanErrorMessage } from '../types/race';
 import { formatDistance } from '../utils/raceCalculations';
 import { CameraQrScanner } from '../components/race/CameraQrScanner';
 import { 
@@ -157,19 +157,18 @@ export const JoinCheckpointPage: React.FC = () => {
       }
 
       // Check if checkpoint is already occupied by another staff member / device
-      const currentAssignedName = checkpoint.assignedStaffName?.trim();
-      const currentAssignedUid = checkpoint.assignedStaffUid?.trim();
+      const activeAssignment = getActiveCheckpointAssignment(checkpoint);
       const currentUserName = staffName.trim() || localStorage.getItem('stopwatch_staff_name')?.trim();
       const currentUid = auth.currentUser?.uid;
 
       const isSameUser = Boolean(
-        (currentUid && currentAssignedUid && currentUid === currentAssignedUid) ||
-        (currentUserName && currentAssignedName && currentUserName.toLowerCase() === currentAssignedName.toLowerCase()) ||
+        (currentUid && checkpoint.assignedStaffUid && currentUid === checkpoint.assignedStaffUid) ||
+        (currentUserName && activeAssignment.staffName && currentUserName.toLowerCase() === activeAssignment.staffName.toLowerCase()) ||
         (checkpoint.isHostAssigned && currentUid === race.hostUid)
       );
 
       if (checkpoint.isHostAssigned && !isSameUser) {
-        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${checkpoint.assignedStaffName || 'Host'}. You cannot join this checkpoint until the current staff member leaves.`);
+        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${activeAssignment.staffName || 'Host'}. You cannot join this checkpoint until the current staff member leaves.`);
         setResolvedRace(null);
         setResolvedCheckpoint(null);
         setResolvingCode(false);
@@ -177,8 +176,8 @@ export const JoinCheckpointPage: React.FC = () => {
         return;
       }
 
-      if (currentAssignedName && currentAssignedName !== '' && !isSameUser) {
-        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${currentAssignedName}. You cannot join this checkpoint until the current staff member leaves.`);
+      if (activeAssignment.isOccupied && !isSameUser) {
+        setErrorMessage(`CHECKPOINT ALREADY OCCUPIED: Checkpoint ${checkpoint.name} is currently assigned to ${activeAssignment.staffName}. You cannot join this checkpoint until the current staff member leaves.`);
         setResolvedRace(null);
         setResolvedCheckpoint(null);
         setResolvingCode(false);
@@ -199,7 +198,7 @@ export const JoinCheckpointPage: React.FC = () => {
       setResolvingCode(false);
     } catch (err: any) {
       console.error('Resolve checkpoint error:', err);
-      setErrorMessage(err.message || 'Invalid or expired checkpoint QR.');
+      setErrorMessage(formatCleanErrorMessage(err, 'Invalid or expired checkpoint QR.'));
       setResolvedRace(null);
       setResolvedCheckpoint(null);
       setResolvingCode(false);
@@ -282,7 +281,7 @@ export const JoinCheckpointPage: React.FC = () => {
       navigate(`/checkpoint/${resolvedCheckpoint.id}?raceId=${resolvedRace.id}`, { replace: true });
     } catch (err: any) {
       console.error('Join checkpoint error:', err);
-      setErrorMessage(err.message || 'Unable to connect to checkpoint.');
+      setErrorMessage(formatCleanErrorMessage(err, 'Unable to connect to checkpoint.'));
       setJoining(false);
     }
   };

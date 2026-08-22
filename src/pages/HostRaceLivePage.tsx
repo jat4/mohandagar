@@ -8,7 +8,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { RaceService } from '../services/raceService';
-import { Race, Checkpoint, TimingEvent, StaffSession } from '../types/race';
+import { Race, Checkpoint, TimingEvent, StaffSession, formatCleanErrorMessage } from '../types/race';
 import { RaceLiveDashboard } from '../components/race/RaceLiveDashboard';
 import { QrCodeModal } from '../components/race/QrCodeModal';
 import { ConfirmModal } from '../components/common/ConfirmModal';
@@ -107,7 +107,7 @@ export const HostRaceLivePage: React.FC = () => {
       showToast({
         type: 'error',
         title: 'Start Failed',
-        message: err.message || 'Could not start race.'
+        message: formatCleanErrorMessage(err, 'Could not start race.')
       });
     }
   };
@@ -127,7 +127,7 @@ export const HostRaceLivePage: React.FC = () => {
       showToast({
         type: 'error',
         title: 'Finish Error',
-        message: err.message || 'Could not finish race.'
+        message: formatCleanErrorMessage(err, 'Could not finish race.')
       });
     }
   };
@@ -147,7 +147,7 @@ export const HostRaceLivePage: React.FC = () => {
       showToast({
         type: 'error',
         title: 'Reset Error',
-        message: err.message || 'Could not reset race.'
+        message: formatCleanErrorMessage(err, 'Could not reset race.')
       });
     }
   };
@@ -192,11 +192,12 @@ export const HostRaceLivePage: React.FC = () => {
       // Host remains on the management page (/host/race/:raceId) without redirecting
     } catch (err: any) {
       console.error('Failed to assign host:', err);
-      const isOccupied = err.message && (err.message.includes('currently assigned') || err.message.includes('already occupied') || err.message.includes('leaves'));
+      const cleanMsg = formatCleanErrorMessage(err, `${checkpoint.name} is currently assigned. You cannot assign yourself to this checkpoint until the current staff member leaves.`);
+      const isOccupied = cleanMsg.includes('currently assigned') || cleanMsg.includes('already occupied') || cleanMsg.includes('leaves');
       showToast({
         type: 'error',
         title: isOccupied ? 'CHECKPOINT ALREADY OCCUPIED' : 'Assignment Error',
-        message: err.message || `${checkpoint.name} is currently assigned. You cannot assign yourself to this checkpoint until the current staff member leaves.`
+        message: cleanMsg
       });
     }
   };

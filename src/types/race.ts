@@ -264,3 +264,182 @@ export interface LiveRunnerProgress {
   totalCount: number;
 }
 
+/**
+ * Checks if a string is a placeholder/metadata/role default label rather than a real staff member name.
+ * Default role names, gate labels ("Start Line", "Finish Line", "Phone A", "CP 1", etc.) are NEVER real staff assignments.
+ */
+export function isPlaceholderStaffName(name?: string, checkpointName?: string): boolean {
+  if (!name) return true;
+  const trimmed = name.trim();
+  if (
+    !trimmed || 
+    trimmed === '—' || 
+    trimmed === '-' || 
+    trimmed.toLowerCase() === 'unassigned' || 
+    trimmed.toLowerCase() === 'none' || 
+    trimmed.toLowerCase() === 'no staff' ||
+    trimmed.toLowerCase() === 'no device'
+  ) {
+    return true;
+  }
+  
+  const lower = trimmed.toLowerCase();
+  
+  // Checkpoint role/type placeholders
+  if (
+    lower === 'start line' || 
+    lower === 'start' || 
+    lower === 'start gate' || 
+    lower === 'start line gate' ||
+    lower === 'start only' ||
+    lower === 'finish line' || 
+    lower === 'finish' || 
+    lower === 'finish gate' || 
+    lower === 'finish line gate' ||
+    lower === 'finish only' ||
+    lower === 'split gate' ||
+    lower === 'split only' ||
+    lower === 'split & finish' ||
+    lower === 'checkpoint staff' ||
+    lower === 'staff' ||
+    lower === 'staff member' ||
+    lower === 'volunteer'
+  ) {
+    return true;
+  }
+
+  // Default device labels e.g., "Phone A", "Phone B", "Phone 1", "Device A", "Device 1", "Phone"
+  if (/^(phone|device)\s*([a-z]|[0-9]+)?$/i.test(lower)) {
+    return true;
+  }
+
+  // Check if it's identical to the checkpoint name (e.g. "CP 1", "CP 1 (Turn 1)", "CP1", "START LINE", "FINISH LINE")
+  if (checkpointName && lower === checkpointName.trim().toLowerCase()) {
+    return true;
+  }
+
+  // Regex matching generic gate names like "CP 1", "CP1", "CP 2", "Gate 1", etc.
+  if (/^(cp|gate)\s*[0-9]+(\s*\(.*\))?$/i.test(lower)) {
+    return true;
+  }
+
+  return false;
+}
+
+export interface ActiveCheckpointAssignment {
+  isOccupied: boolean;
+  staffName: string;
+  deviceName?: string;
+  staffUid?: string;
+  isHost?: boolean;
+}
+
+/**
+ * Returns the current active assignment for a checkpoint.
+ * Strictly separates checkpoint metadata (name, role, default label) from REAL active assignments.
+ */
+export function getActiveCheckpointAssignment(
+  checkpoint?: Checkpoint | null,
+  staffSessions?: StaffSession[]
+): ActiveCheckpointAssignment {
+  if (!checkpoint) {
+    return { isOccupied: false, staffName: '' };
+  }
+
+  // 1. Host assignment check
+  if (checkpoint.isHostAssigned) {
+    const rawStaffName = checkpoint.assignedStaffName?.trim();
+    const hostDisplayName = rawStaffName && !isPlaceholderStaffName(rawStaffName, checkpoint.name)
+      ? rawStaffName
+      : 'Host';
+    return {
+      isOccupied: true,
+      staffName: hostDisplayName.includes('(Host)') ? hostDisplayName : `${hostDisplayName} (Host)`,
+      deviceName: checkpoint.assignedDeviceName || 'Host Device',
+      staffUid: checkpoint.assignedStaffUid,
+      isHost: true
+    };
+  }
+
+  // 2. Direct checkpoint fields check (assignedStaffUid or real assignedStaffName)
+  const rawStaffName = checkpoint.assignedStaffName?.trim();
+  const hasRealStaffName = Boolean(rawStaffName && !isPlaceholderStaffName(rawStaffName, checkpoint.name));
+  const hasStaffUid = Boolean(checkpoint.assignedStaffUid && checkpoint.assignedStaffUid.trim() !== '');
+
+  if (hasRealStaffName || hasStaffUid) {
+    return {
+      isOccupied: true,
+      staffName: hasRealStaffName ? rawStaffName! : 'Staff Member',
+      deviceName: checkpoint.assignedDeviceName || 'Staff Device',
+      staffUid: checkpoint.assignedStaffUid,
+      isHost: false
+    };
+  }
+
+  // 3. Active staff sessions in Firestore (from live connected devices)
+  if (staffSessions && staffSessions.length > 0) {
+    const session = staffSessions.find(s => s.checkpointId === checkpoint.id);
+    if (session && session.staffName && !isPlaceholderStaffName(session.staffName, checkpoint.name)) {
+      return {
+        isOccupied: true,
+        staffName: session.staffName,
+        deviceName: session.deviceName || 'Staff Device',
+        isHost: Boolean(session.isHost)
+      };
+    }
+  }
+
+  return {
+    isOccupied: false,
+    staffName: ''
+  };
+}
+
+/**
+ * Convenience helper to check if a checkpoint has a valid active assignment.
+ */
+export function hasValidActiveAssignment(
+  checkpoint?: Checkpoint | null,
+  staffSessions?: StaffSession[]
+): boolean {
+  return getActiveCheckpointAssignment(checkpoint, staffSessions).isOccupied;
+}
+
+/**
+ * Formats clean, professional error messages for UI display without exposing internal backend / auth info.
+ */
+export function formatCleanErrorMessage(err: any, fallbackMessage: string = 'An unexpected error occurred.'): string {
+  if (!err) return fallbackMessage;
+  let rawMsg = typeof err === 'string' ? err : err.message || String(err);
+
+  // If it's a JSON stringified FirestoreErrorInfo or raw error object
+  if (rawMsg.startsWith('{') && rawMsg.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(rawMsg);
+      if (parsed.error) {
+        rawMsg = parsed.error;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Clean known permission and connectivity errors
+  if (rawMsg.includes('permission-denied') || rawMsg.includes('Missing or insufficient permissions')) {
+    return 'Permission denied. Please make sure you are signed in with the correct account.';
+  }
+  if (rawMsg.includes('unavailable') || rawMsg.includes('client is offline')) {
+    return 'Network connection is offline. Please check your internet connection.';
+  }
+  if (rawMsg.includes('not-found')) {
+    return 'The requested race or checkpoint could not be found.';
+  }
+
+  // If it contains raw authInfo or internal paths, strip them
+  if (rawMsg.includes('authInfo') || rawMsg.includes('providerInfo') || rawMsg.includes('operationType')) {
+    return fallbackMessage;
+  }
+
+  return rawMsg;
+}
+

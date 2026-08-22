@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { RaceService } from '../services/raceService';
-import { CheckpointType, DistanceUnit, normalizeCheckpointType } from '../types/race';
+import { CheckpointType, DistanceUnit, normalizeCheckpointType, formatCleanErrorMessage } from '../types/race';
 import { 
   Sparkles, 
   Layers, 
@@ -41,12 +41,12 @@ export const HostCreateRacePage: React.FC = () => {
     assignedStaffName: string;
     isStart?: boolean;
   }>>([
-    { id: 'start', name: 'START LINE', distanceMeters: 0, type: 'start', assignedStaffName: 'Start Line', isStart: true },
-    { id: '1', name: 'CP 1 (Turn 1)', distanceMeters: 1000, type: 'splitFinish', assignedStaffName: 'Phone A' },
-    { id: '2', name: 'CP 2 (Midpoint)', distanceMeters: 2000, type: 'splitOnly', assignedStaffName: 'Phone B' },
-    { id: '3', name: 'CP 3 (Turn 3)', distanceMeters: 3000, type: 'splitFinish', assignedStaffName: 'Phone C' },
-    { id: '4', name: 'CP 4 (Final Loop)', distanceMeters: 4000, type: 'splitOnly', assignedStaffName: 'Phone D' },
-    { id: 'finish', name: 'FINISH LINE', distanceMeters: 5000, type: 'finish', assignedStaffName: 'Finish Line' }
+    { id: 'start', name: 'START LINE', distanceMeters: 0, type: 'start', assignedStaffName: '', isStart: true },
+    { id: '1', name: 'CP 1 (Turn 1)', distanceMeters: 1000, type: 'splitFinish', assignedStaffName: '' },
+    { id: '2', name: 'CP 2 (Midpoint)', distanceMeters: 2000, type: 'splitOnly', assignedStaffName: '' },
+    { id: '3', name: 'CP 3 (Turn 3)', distanceMeters: 3000, type: 'splitFinish', assignedStaffName: '' },
+    { id: '4', name: 'CP 4 (Final Loop)', distanceMeters: 4000, type: 'splitOnly', assignedStaffName: '' },
+    { id: 'finish', name: 'FINISH LINE', distanceMeters: 5000, type: 'finish', assignedStaffName: '' }
   ]);
 
   const [creatingRace, setCreatingRace] = useState(false);
@@ -79,7 +79,7 @@ export const HostCreateRacePage: React.FC = () => {
       name: `CP ${middleCheckpoints.length + 1}`,
       distanceMeters: newDistance,
       type: 'splitFinish' as CheckpointType,
-      assignedStaffName: `Phone ${String.fromCharCode(65 + (middleCheckpoints.length % 26))}`
+      assignedStaffName: ''
     };
 
     setWizardCheckpoints([startLine, ...middleCheckpoints, newCp, finishLine]);
@@ -138,7 +138,7 @@ export const HostCreateRacePage: React.FC = () => {
       navigate(`/host/race/${newRace.id}`);
     } catch (err: any) {
       console.error('Failed to create race:', err);
-      setErrorMessage(err.message || 'Error creating race in cloud database.');
+      setErrorMessage(formatCleanErrorMessage(err, 'Error creating race in cloud database.'));
     } finally {
       setCreatingRace(false);
     }
