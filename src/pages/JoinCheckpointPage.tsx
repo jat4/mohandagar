@@ -160,10 +160,9 @@ export const JoinCheckpointPage: React.FC = () => {
       setResolvedCheckpoint(checkpoint);
       setJoinCode(checkpoint.joinCode || cleanCode);
 
-      if (checkpoint.assignedStaffName && !staffName.trim()) {
-        setStaffName(checkpoint.assignedStaffName);
-      } else if (!staffName.trim()) {
-        setStaffName('Volunteer Staff');
+      if (!staffName.trim()) {
+        const savedName = localStorage.getItem('stopwatch_staff_name');
+        setStaffName(savedName || 'Volunteer Staff');
       }
 
       setResolvingCode(false);
@@ -204,10 +203,18 @@ export const JoinCheckpointPage: React.FC = () => {
     setJoining(true);
 
     try {
-      const finalStaffName = staffName.trim() || resolvedCheckpoint.assignedStaffName || 'Volunteer Staff';
+      const finalStaffName = staffName.trim() || 'Volunteer Staff';
       const finalDeviceName = deviceName.trim() || 'Mobile Device';
 
-      // Save to localStorage for session persistence
+      // 1. Claim checkpoint atomically with Firestore transaction protection
+      await RaceService.claimCheckpoint({
+        raceId: resolvedRace.id,
+        checkpointId: resolvedCheckpoint.id,
+        staffName: finalStaffName,
+        deviceName: finalDeviceName
+      });
+
+      // 2. Save to localStorage for session persistence only AFTER successful atomic claim
       localStorage.setItem('stopwatch_staff_name', finalStaffName);
       localStorage.setItem('stopwatch_device_name', finalDeviceName);
       localStorage.setItem(`checkpoint_session_${resolvedCheckpoint.id}`, JSON.stringify({
@@ -218,15 +225,7 @@ export const JoinCheckpointPage: React.FC = () => {
         deviceName: finalDeviceName
       }));
 
-      // Claim checkpoint with Host locking validation
-      await RaceService.claimCheckpoint({
-        raceId: resolvedRace.id,
-        checkpointId: resolvedCheckpoint.id,
-        staffName: finalStaffName,
-        deviceName: finalDeviceName
-      });
-
-      // Register staff session heartbeat
+      // 3. Register staff session heartbeat
       const sessionKey = `checkpoint_staff_session_${resolvedCheckpoint.id}`;
       const savedSessionId = localStorage.getItem(sessionKey) || `session_${resolvedCheckpoint.id}_${Date.now()}`;
       localStorage.setItem(sessionKey, savedSessionId);
@@ -248,7 +247,7 @@ export const JoinCheckpointPage: React.FC = () => {
         message: `Connected to ${resolvedCheckpoint.name} (${resolvedRace.name})`
       });
 
-      // Navigate to checkpoint timing screen (No full page reload)
+      // 4. Navigate to checkpoint timing screen
       navigate(`/checkpoint/${resolvedCheckpoint.id}?raceId=${resolvedRace.id}`, { replace: true });
     } catch (err: any) {
       console.error('Join checkpoint error:', err);
@@ -366,6 +365,26 @@ export const JoinCheckpointPage: React.FC = () => {
                 <span className="block text-[10px] text-slate-500 mt-0.5">
                   {typeAuthorityHint}
                 </span>
+              </div>
+            </div>
+
+            {/* Current Assignment / Capacity */}
+            <div className="p-3.5 flex items-center justify-between gap-2">
+              <span className="text-slate-400 shrink-0 font-medium">Gate Status:</span>
+              <div className="text-right font-bold text-xs">
+                {resolvedCheckpoint.isHostAssigned ? (
+                  <span className="inline-block px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-500/40 text-amber-300">
+                    👑 Host Assigned ({resolvedCheckpoint.assignedStaffName || 'Host'})
+                  </span>
+                ) : resolvedCheckpoint.assignedStaffName ? (
+                  <span className="inline-block px-2 py-0.5 rounded-md bg-cyan-950/80 border border-cyan-500/40 text-cyan-300">
+                    🔒 Assigned ({resolvedCheckpoint.assignedStaffName})
+                  </span>
+                ) : (
+                  <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/40 text-emerald-300">
+                    ✓ Available (1 Max Device)
+                  </span>
+                )}
               </div>
             </div>
 

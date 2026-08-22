@@ -15,7 +15,8 @@ import {
   query, 
   orderBy, 
   where,
-  limit 
+  limit,
+  runTransaction
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
@@ -354,7 +355,8 @@ export class RaceService {
   }
 
   /**
-   * Assign Host to any checkpoint (Start Line, normal CP, or Finish Line)
+   * Assign Host to any checkpoint (Start Line, normal CP, or Finish Line).
+   * Enforces 1 active device assignment per checkpoint atomically in Firestore.
    */
   static async assignHostToCheckpoint(
     raceId: string,
@@ -363,47 +365,75 @@ export class RaceService {
     hostUid?: string
   ): Promise<void> {
     const user = auth.currentUser;
-    const uid = hostUid || user?.uid || 'host';
-    const name = hostName || user?.displayName || user?.email?.split('@')[0] || 'Host';
     const now = TimeSyncService.now();
 
-    const race = await this.getRace(raceId);
-    if (!race) throw new Error('Race not found.');
-
-    // Update checkpoints: only the selected checkpoint has isHostAssigned = true
-    const updatedCheckpoints = (race.checkpoints || []).map((cp) => {
-      if (cp.id === checkpointId) {
-        return {
-          ...cp,
-          isHostAssigned: true,
-          assignedStaffName: `${name} (Host)`,
-          assignedStaffUid: uid
-        };
-      }
-      // Clear previous host assignment from other checkpoints if any
-      if (cp.isHostAssigned || cp.assignedStaffUid === uid) {
-        return {
-          ...cp,
-          isHostAssigned: false,
-          assignedStaffName: '',
-          assignedStaffUid: ''
-        };
-      }
-      return cp;
-    });
-
-    const targetCp = updatedCheckpoints.find((cp) => cp.id === checkpointId);
-
     try {
-      await updateDoc(doc(db, 'races', raceId), {
-        checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
-        hostAssignedCheckpointId: checkpointId,
-        updatedAt: now
-      });
+      await runTransaction(db, async (transaction) => {
+        const raceRef = doc(db, 'races', raceId);
+        const raceSnap = await transaction.get(raceRef);
 
-      // Record a staffSession for the Host so real-time devices see it immediately
-      if (targetCp) {
+        if (!raceSnap.exists()) {
+          throw new Error('Race not found.');
+        }
+
+        const race = raceSnap.data() as Race;
+        const checkpoints = race.checkpoints || [];
+        const targetCp = checkpoints.find((c) => c.id === checkpointId);
+
+        if (!targetCp) {
+          throw new Error('Checkpoint not found in this race.');
+        }
+
+        const uid = hostUid || user?.uid || race.hostUid || 'host';
+        const name = hostName || user?.displayName || user?.email?.split('@')[0] || 'Host';
+
+        // Check if target checkpoint is ALREADY claimed by another staff member (who is not the host)
+        const currentAssignedName = targetCp.assignedStaffName?.trim();
+        const currentAssignedUid = targetCp.assignedStaffUid?.trim();
+
+        if (!targetCp.isHostAssigned && currentAssignedName && currentAssignedName !== '') {
+          // If assigned to a staff member who is not this host
+          const isSameHost = (currentAssignedUid === uid) || currentAssignedName.includes('(Host)');
+          if (!isSameHost) {
+            throw new Error(
+              `Checkpoint already assigned. This checkpoint is already occupied by ${currentAssignedName}.`
+            );
+          }
+        }
+
+        // Update checkpoints: only the selected checkpoint has isHostAssigned = true
+        const updatedCheckpoints = checkpoints.map((cp) => {
+          if (cp.id === checkpointId) {
+            return {
+              ...cp,
+              isHostAssigned: true,
+              assignedStaffName: `${name} (Host)`,
+              assignedStaffUid: uid,
+              assignedDeviceName: 'Host Device'
+            };
+          }
+          // Clear previous host assignment from other checkpoints if any
+          if (cp.isHostAssigned || cp.assignedStaffUid === uid) {
+            return {
+              ...cp,
+              isHostAssigned: false,
+              assignedStaffName: '',
+              assignedStaffUid: '',
+              assignedDeviceName: ''
+            };
+          }
+          return cp;
+        });
+
+        transaction.update(raceRef, {
+          checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
+          hostAssignedCheckpointId: checkpointId,
+          updatedAt: now
+        });
+
+        // Record a staffSession for the Host so real-time devices see it immediately
         const sessionId = `session_host_${raceId}_${uid}`;
+        const sessionRef = doc(db, 'races', raceId, 'staffSessions', sessionId);
         const session: StaffSession = {
           id: sessionId,
           raceId,
@@ -417,10 +447,14 @@ export class RaceService {
           status: 'ONLINE',
           isHost: true
         };
-        await setDoc(doc(db, 'races', raceId, 'staffSessions', sessionId), sanitizeFirestorePayload(session), { merge: true });
+        transaction.set(sessionRef, sanitizeFirestorePayload(session), { merge: true });
+      });
+    } catch (error: any) {
+      if (error?.message && (error.message.includes('already occupied') || error.message.includes('Checkpoint already assigned'))) {
+        throw error;
       }
-    } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `races/${raceId}`);
+      throw error;
     }
   }
 
@@ -432,41 +466,44 @@ export class RaceService {
     const uid = hostUid || user?.uid || 'host';
     const now = TimeSyncService.now();
 
-    const race = await this.getRace(raceId);
-    if (!race) return;
-
-    const updatedCheckpoints = (race.checkpoints || []).map((cp) => {
-      if (cp.isHostAssigned || cp.assignedStaffUid === uid) {
-        return {
-          ...cp,
-          isHostAssigned: false,
-          assignedStaffName: '',
-          assignedStaffUid: ''
-        };
-      }
-      return cp;
-    });
-
     try {
-      await updateDoc(doc(db, 'races', raceId), {
-        checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
-        hostAssignedCheckpointId: null,
-        updatedAt: now
-      });
+      await runTransaction(db, async (transaction) => {
+        const raceRef = doc(db, 'races', raceId);
+        const raceSnap = await transaction.get(raceRef);
+        if (!raceSnap.exists()) return;
 
-      const sessionId = `session_host_${raceId}_${uid}`;
-      try {
-        await deleteDoc(doc(db, 'races', raceId, 'staffSessions', sessionId));
-      } catch (e) {
-        // ignore deletion error if session does not exist
-      }
+        const race = raceSnap.data() as Race;
+        const updatedCheckpoints = (race.checkpoints || []).map((cp) => {
+          if (cp.isHostAssigned || cp.assignedStaffUid === uid) {
+            return {
+              ...cp,
+              isHostAssigned: false,
+              assignedStaffName: '',
+              assignedStaffUid: '',
+              assignedDeviceName: ''
+            };
+          }
+          return cp;
+        });
+
+        transaction.update(raceRef, {
+          checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
+          hostAssignedCheckpointId: null,
+          updatedAt: now
+        });
+
+        const sessionId = `session_host_${raceId}_${uid}`;
+        const sessionRef = doc(db, 'races', raceId, 'staffSessions', sessionId);
+        transaction.delete(sessionRef);
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `races/${raceId}`);
     }
   }
 
   /**
-   * Claim Checkpoint by a staff volunteer (ensuring not claimed by Host)
+   * Claim Checkpoint by a staff volunteer (ensuring exactly 1 active device per checkpoint).
+   * Atomically protects against concurrent join race conditions via Firestore runTransaction.
    */
   static async claimCheckpoint(params: {
     raceId: string;
@@ -476,59 +513,113 @@ export class RaceService {
     staffUid?: string;
   }): Promise<Checkpoint> {
     const now = TimeSyncService.now();
-    const race = await this.getRace(params.raceId);
-    if (!race) throw new Error('Race not found.');
+    const claimantName = params.staffName.trim();
+    const claimantUid = params.staffUid || auth.currentUser?.uid || '';
+    const claimantDevice = params.deviceName?.trim() || 'Staff Phone';
 
-    const targetCp = race.checkpoints.find((c) => c.id === params.checkpointId);
-    if (!targetCp) throw new Error('Checkpoint not found in this race.');
-
-    // Check if locked by Host
-    if (targetCp.isHostAssigned && params.staffUid !== race.hostUid) {
-      throw new Error(`This checkpoint has been assigned to Host (${targetCp.assignedStaffName || 'Host'}).`);
+    if (!claimantName) {
+      throw new Error('Staff name is required to claim a checkpoint.');
     }
 
-    // Update checkpoint with assigned staff info
-    const updatedCheckpoints = race.checkpoints.map((cp) => {
-      if (cp.id === params.checkpointId) {
-        return {
-          ...cp,
-          assignedStaffName: params.staffName.trim(),
-          assignedStaffUid: params.staffUid || '',
-          assignedDeviceName: params.deviceName || 'Staff Phone'
-        };
-      }
-      return cp;
-    });
-
     try {
-      await updateDoc(doc(db, 'races', params.raceId), {
-        checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
-        updatedAt: now
+      const resultCp = await runTransaction(db, async (transaction) => {
+        const raceRef = doc(db, 'races', params.raceId);
+        const raceSnap = await transaction.get(raceRef);
+
+        if (!raceSnap.exists()) {
+          throw new Error('Race not found.');
+        }
+
+        const race = raceSnap.data() as Race;
+        const checkpoints = race.checkpoints || [];
+        const targetCp = checkpoints.find((c) => c.id === params.checkpointId);
+
+        if (!targetCp) {
+          throw new Error('Checkpoint not found in this race.');
+        }
+
+        const isClaimantHost = Boolean(
+          (claimantUid && claimantUid === race.hostUid) ||
+          (auth.currentUser && auth.currentUser.uid === race.hostUid)
+        );
+
+        // 1. Check if locked/assigned by Host
+        if (targetCp.isHostAssigned && !isClaimantHost) {
+          throw new Error(
+            `Checkpoint already assigned. This checkpoint has been assigned to Host (${targetCp.assignedStaffName || 'Host'}).`
+          );
+        }
+
+        // 2. Check if already occupied by another staff member / device
+        const currentStaffName = targetCp.assignedStaffName?.trim();
+        const currentStaffUid = targetCp.assignedStaffUid?.trim();
+
+        if (currentStaffName && currentStaffName !== '') {
+          // Verify if this is the SAME user/device re-connecting or refreshing
+          const isSameUser = Boolean(
+            (claimantUid && currentStaffUid && claimantUid === currentStaffUid) ||
+            (currentStaffName.toLowerCase() === claimantName.toLowerCase())
+          );
+
+          if (!isSameUser && !isClaimantHost) {
+            throw new Error(
+              `Checkpoint already assigned. This checkpoint is already occupied by ${currentStaffName}.`
+            );
+          }
+        }
+
+        // 3. Atomically update checkpoint assignment in race doc
+        const updatedCheckpoints = checkpoints.map((cp) => {
+          if (cp.id === params.checkpointId) {
+            return {
+              ...cp,
+              assignedStaffName: claimantName,
+              assignedStaffUid: claimantUid,
+              assignedDeviceName: claimantDevice,
+              isHostAssigned: isClaimantHost ? true : Boolean(cp.isHostAssigned)
+            };
+          }
+          return cp;
+        });
+
+        transaction.update(raceRef, {
+          checkpoints: updatedCheckpoints.map((cp) => sanitizeFirestorePayload(cp)),
+          updatedAt: now
+        });
+
+        // 4. Record staffSession for real-time heartbeat and presence
+        const sessionId = `session_${params.checkpointId}_${claimantUid || claimantName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const sessionRef = doc(db, 'races', params.raceId, 'staffSessions', sessionId);
+        const session: StaffSession = {
+          id: sessionId,
+          raceId: params.raceId,
+          checkpointId: targetCp.id,
+          checkpointName: targetCp.name,
+          checkpointDistanceMeters: targetCp.distanceMeters,
+          staffName: claimantName,
+          deviceName: claimantDevice,
+          joinedAt: now,
+          lastSeenAt: now,
+          status: 'ONLINE',
+          isHost: isClaimantHost
+        };
+        transaction.set(sessionRef, sanitizeFirestorePayload(session), { merge: true });
+
+        return {
+          ...targetCp,
+          assignedStaffName: claimantName,
+          assignedStaffUid: claimantUid,
+          assignedDeviceName: claimantDevice
+        };
       });
 
-      // Create / update staffSession
-      const sessionId = `session_${params.staffUid || Math.random().toString(36).substring(2, 8)}`;
-      const session: StaffSession = {
-        id: sessionId,
-        raceId: params.raceId,
-        checkpointId: targetCp.id,
-        checkpointName: targetCp.name,
-        checkpointDistanceMeters: targetCp.distanceMeters,
-        staffName: params.staffName.trim(),
-        deviceName: params.deviceName || 'Staff Phone',
-        joinedAt: now,
-        lastSeenAt: now,
-        status: 'ONLINE',
-        isHost: params.staffUid === race.hostUid
-      };
-      await setDoc(doc(db, 'races', params.raceId, 'staffSessions', sessionId), sanitizeFirestorePayload(session), { merge: true });
-
-      return {
-        ...targetCp,
-        assignedStaffName: params.staffName.trim()
-      };
-    } catch (error) {
+      return resultCp;
+    } catch (error: any) {
+      if (error?.message && (error.message.includes('already occupied') || error.message.includes('Checkpoint already assigned'))) {
+        throw error;
+      }
       handleFirestoreError(error, OperationType.UPDATE, `races/${params.raceId}`);
+      throw error;
     }
   }
 

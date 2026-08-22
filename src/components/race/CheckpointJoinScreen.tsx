@@ -155,8 +155,8 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
       setResolvedRace(race);
       setResolvedCheckpoint(checkpoint);
       setJoinCode(code);
-      if (checkpoint.assignedStaffName && !staffName) {
-        setStaffName(checkpoint.assignedStaffName);
+      if (!staffName) {
+        setStaffName(localStorage.getItem('stopwatch_staff_name') || 'Volunteer Staff');
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Error looking up join code.');
@@ -189,18 +189,20 @@ export const CheckpointJoinScreen: React.FC<CheckpointJoinScreenProps> = ({
           staffName: staffName.trim(),
           deviceName: deviceName.trim() || 'Staff Device'
         });
-      } catch (err) {
-        console.warn('Could not claim checkpoint on join:', err);
+        setJoined(true);
+        if (onJoinedStaff && resolvedRace && resolvedCheckpoint) {
+          onJoinedStaff({
+            raceId: resolvedRace.id,
+            checkpointId: resolvedCheckpoint.id,
+            joinCode: joinCode.trim() || undefined,
+            staffName: staffName.trim()
+          });
+        }
+      } catch (err: any) {
+        console.error('Could not claim checkpoint on join:', err);
+        setErrorMessage(err.message || 'Checkpoint already assigned.');
+        return;
       }
-    }
-    setJoined(true);
-    if (onJoinedStaff && resolvedRace && resolvedCheckpoint) {
-      onJoinedStaff({
-        raceId: resolvedRace.id,
-        checkpointId: resolvedCheckpoint.id,
-        joinCode: joinCode.trim() || undefined,
-        staffName: staffName.trim()
-      });
     }
   };
 
