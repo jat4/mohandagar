@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Race, 
   TimingEvent, 
@@ -83,6 +83,12 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
 
   // Map staff sessions by checkpointId
   // Pick the most recent session for each checkpointId
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const now = TimeSyncService.now() || Date.now();
   const sessionByCheckpoint = new Map<string, StaffSession>();
   staffSessions.forEach((s) => {
@@ -355,10 +361,14 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                   session = staffSessions.find(s => s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START'));
                 }
 
-                const isOnline = Boolean(session && (
-                  Math.abs(now - (session.lastSeenAt || 0)) < 60000 || 
-                  Math.abs(Date.now() - (session.lastSeenAt || 0)) < 60000
-                ));
+                const isOnline = Boolean(
+                  session &&
+                  session.status !== 'OFFLINE' &&
+                  (
+                    Math.abs(Date.now() - (session.lastSeenAt || 0)) < 45000 ||
+                    Math.abs(now - (session.lastSeenAt || 0)) < 45000
+                  )
+                );
 
                 return (
                   <tr 
@@ -433,13 +443,11 @@ export const RaceLiveDashboard: React.FC<RaceLiveDashboardProps> = ({
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           <span>CONNECTED</span>
                         </span>
-                      ) : session ? (
+                      ) : (
                         <span className="px-2.5 py-1 rounded-full bg-rose-950/80 border border-rose-500/40 text-rose-300 text-[10px] font-bold inline-flex items-center gap-1">
                           <WifiOff className="w-3 h-3 text-rose-400" />
                           <span>OFFLINE</span>
                         </span>
-                      ) : (
-                        <span className="text-slate-600 text-[11px]">Standby</span>
                       )}
                     </td>
 

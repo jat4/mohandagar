@@ -299,11 +299,7 @@ export function isPlaceholderStaffName(name?: string, checkpointName?: string): 
     lower === 'finish only' ||
     lower === 'split gate' ||
     lower === 'split only' ||
-    lower === 'split & finish' ||
-    lower === 'checkpoint staff' ||
-    lower === 'staff' ||
-    lower === 'staff member' ||
-    lower === 'volunteer'
+    lower === 'split & finish'
   ) {
     return true;
   }

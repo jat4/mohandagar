@@ -70,6 +70,12 @@ export const HostRaceCheckpointsPage: React.FC = () => {
     };
   }, [raceId]);
 
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
@@ -158,10 +164,14 @@ export const HostRaceCheckpointsPage: React.FC = () => {
             session = staffSessions.find(s => s.checkpointId === 'START' || s.checkpointName?.toUpperCase().includes('START'));
           }
 
-          const isOnline = Boolean(session && (
-            Math.abs(Date.now() - (session.lastSeenAt || 0)) < 60000 ||
-            Math.abs(TimeSyncService.now() - (session.lastSeenAt || 0)) < 60000
-          ));
+          const isOnline = Boolean(
+            session &&
+            session.status !== 'OFFLINE' &&
+            (
+              Math.abs(Date.now() - (session.lastSeenAt || 0)) < 45000 ||
+              Math.abs(TimeSyncService.now() - (session.lastSeenAt || 0)) < 45000
+            )
+          );
 
           return (
             <div
@@ -263,14 +273,14 @@ export const HostRaceCheckpointsPage: React.FC = () => {
 
                 <div className="flex items-center gap-1.5">
                   <span className={`w-2 h-2 rounded-full ${
-                    !activeAssignment.isOccupied ? 'bg-slate-700' : (isHost ? 'bg-cyan-400 animate-pulse' : isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-500')
+                    !activeAssignment.isOccupied ? 'bg-slate-700' : (isHost ? 'bg-cyan-400 animate-pulse' : isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500')
                   }`} />
                   <span className={
                     !activeAssignment.isOccupied 
                       ? 'text-slate-500' 
-                      : (isHost ? 'text-cyan-300 font-bold' : isOnline ? 'text-emerald-400 font-bold' : 'text-amber-400 font-medium')
+                      : (isHost ? 'text-cyan-300 font-bold' : isOnline ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold')
                   }>
-                    {!activeAssignment.isOccupied ? 'No Device' : (isHost ? 'Host Gate' : isOnline ? 'Device Live' : 'Standby')}
+                    {!activeAssignment.isOccupied ? 'No Device' : (isHost ? 'Host Gate' : isOnline ? 'ONLINE / CONNECTED' : 'OFFLINE')}
                   </span>
                 </div>
               </div>

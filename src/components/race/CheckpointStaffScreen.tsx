@@ -85,14 +85,14 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
   const timeSync = useTimeSync();
   const [recalibrating, setRecalibrating] = useState(false);
 
-  const sessionId = useRef(() => {
+  const sessionIdRef = useRef<string>('');
+  if (!sessionIdRef.current) {
     const key = `checkpoint_staff_session_${checkpoint.id}`;
     const saved = localStorage.getItem(key);
-    if (saved) return saved;
-    const generated = `session_${checkpoint.id}_${Date.now()}`;
-    localStorage.setItem(key, generated);
-    return generated;
-  }).current();
+    sessionIdRef.current = saved || `session_${checkpoint.id}_${Date.now()}`;
+    localStorage.setItem(key, sessionIdRef.current);
+  }
+  const sessionId = sessionIdRef.current;
 
   // Check if current user is the actively assigned staff member or host
   const isCurrentAssignedStaff = Boolean(
@@ -144,7 +144,15 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
         status: 'ONLINE'
       });
     };
-    const handleOffline = () => setIsOnline(false);
+    const handleOffline = () => {
+      setIsOnline(false);
+      RaceService.updateStaffHeartbeat(race.id, sessionId, {
+        checkpointId: checkpoint.id,
+        staffName,
+        deviceName,
+        status: 'OFFLINE'
+      }).catch(() => {});
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
