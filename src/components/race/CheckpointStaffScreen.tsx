@@ -439,11 +439,11 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
               <div className="flex items-center gap-1.5 mb-1">
                 {isStartOnly ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/30">
-                    🚦 START LINE (START ONLY) 🔒
+                    🚦 START LINE (START ONLY)
                   </span>
                 ) : isFinishOnly ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-500/30">
-                    🏁 FINISH LINE (FINISH ONLY) 🔒
+                    🏁 FINISH LINE (FINISH ONLY)
                   </span>
                 ) : isSplitFinish ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/30">
@@ -629,7 +629,7 @@ export const CheckpointStaffScreen: React.FC<CheckpointStaffScreenProps> = ({
                   <span>{hasRecorded && thisCheckpointEvent?.eventType === 'FINISH' ? 'FINISH RECORDED' : 'FINISH'}</span>
                 </button>
                 <div className="text-center text-[11px] font-mono text-slate-400">
-                  Finish Line • Finish Only (No Split) 🔒
+                  Finish Line • Finish Only
                 </div>
               </div>
             )}

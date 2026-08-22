@@ -481,7 +481,7 @@ export function calculateLiveRunnerProgress(
   // Last Update Timestamp
   const lastUpdatedAt = lastRecordedEvent?.timestamp || race.finishTimestamp || race.startTimestamp || race.updatedAt || race.createdAt;
   const lastUpdatedAtFormatted = lastUpdatedAt
-    ? new Date(lastUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+    ? formatWallClockTime12h(lastUpdatedAt)
     : '—';
 
   // Determine next checkpoint & prediction
@@ -533,7 +533,7 @@ export function calculateLiveRunnerProgress(
       const windowEndDate = new Date(expectedWallClockTimestamp + windowMarginMs);
       const windowStartFormatted = formatWallClockTime12h(windowStartDate);
       const windowEndFormatted = formatWallClockTime12h(windowEndDate);
-      const expectedWindowFormatted = `~${windowStartFormatted}–${windowEndFormatted}`;
+      const expectedWindowFormatted = `${windowStartFormatted} – ${windowEndFormatted}`;
 
       const isFinal = normalizeCheckpointType(targetCp.type) === 'finish' || 
         targetCp.id === sortedCheckpoints[sortedCheckpoints.length - 1].id;

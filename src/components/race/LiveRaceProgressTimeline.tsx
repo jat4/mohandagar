@@ -120,14 +120,18 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
     }
 
     if (nextCheckpoint && nextCheckpoint.id === currentCheckpointId && nextPrediction) {
+      const isFinishTarget = normalizeCheckpointType(myCp.type) === 'finish';
       return (
         <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-xs font-mono text-emerald-200 flex items-center justify-between gap-2 animate-pulse">
           <div className="flex items-center gap-2">
             <Compass className="w-4 h-4 text-emerald-400 shrink-0 animate-spin" style={{ animationDuration: '4s' }} />
-            <span>Runner approaching your station: <strong>{myCp.name}</strong></span>
+            <span>
+              Runner approaching your station: <strong>{myCp.name}</strong>
+              {isFinishTarget && ' (Finish Line)'}
+            </span>
           </div>
           <span className="text-[11px] text-emerald-300 font-bold">
-            Est: ~{nextPrediction.expectedWallClockTimeFormatted} (~in {nextPrediction.estimatedSegmentTimeFormatted})
+            Est. Arrival: {nextPrediction.expectedWallClockTimeFormatted} (~in {nextPrediction.estimatedSegmentTimeFormatted})
           </span>
         </div>
       );
@@ -192,7 +196,7 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
           </div>
 
           <div className="text-left sm:text-right font-mono text-xs text-slate-400">
-            <span>Last Update: </span>
+            <span>Last Recorded: </span>
             <strong className="text-slate-200">{liveProgress.lastUpdatedAtFormatted}</strong>
           </div>
         </div>
@@ -214,31 +218,31 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
             </div>
           </div>
 
-          {/* Average Pace */}
+          {/* Latest Pace */}
           <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
             <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 uppercase">
               <TrendingUp className="w-3 h-3 text-amber-400" />
-              <span>Average Pace</span>
+              <span>{isFinished ? 'Overall Avg Pace' : 'Latest Pace'}</span>
             </div>
             <div className="text-base sm:text-lg font-mono font-bold text-amber-300 mt-1 truncate">
               {liveProgress.latestPaceFormatted}
             </div>
             <div className="text-[10px] font-mono text-slate-500 mt-0.5">
-              {isFinished ? 'Overall race pace' : 'Latest measured pace'}
+              {isFinished ? 'Overall race average' : 'Latest measured pace'}
             </div>
           </div>
 
-          {/* Average Speed */}
+          {/* Latest Speed */}
           <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
             <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 uppercase">
               <Gauge className="w-3 h-3 text-emerald-400" />
-              <span>Average Speed</span>
+              <span>{isFinished ? 'Overall Avg Speed' : 'Latest Speed'}</span>
             </div>
             <div className="text-base sm:text-lg font-mono font-bold text-emerald-300 mt-1 truncate">
               {liveProgress.latestSpeedFormatted}
             </div>
             <div className="text-[10px] font-mono text-slate-500 mt-0.5">
-              {isFinished ? 'Overall race speed' : 'Latest measured speed'}
+              {isFinished ? 'Overall race average' : 'Latest measured speed'}
             </div>
           </div>
 
@@ -268,7 +272,9 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
             <div className="flex items-center gap-2">
               <Compass className="w-4 h-4 text-cyan-400 animate-spin" style={{ animationDuration: '8s' }} />
               <h3 className="text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-cyan-300">
-                Next Checkpoint & Predicted Arrival
+                {normalizeCheckpointType(nextCheckpoint.type) === 'finish'
+                  ? (currentCheckpointId === nextCheckpoint.id ? 'Your Station • Finish Line Arrival Prediction' : 'Next Event & Predicted Finish')
+                  : 'Next Checkpoint & Predicted Arrival'}
               </h3>
             </div>
             <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">
@@ -282,8 +288,13 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
                 <Target className="w-4 h-4 text-cyan-400" />
                 <span className="text-lg sm:text-xl font-black text-slate-100">
                   {nextCheckpoint.name}
-                  {normalizeCheckpointType(nextCheckpoint.type) === 'finish' && ' 🏁 (Finish Line)'}
+                  {normalizeCheckpointType(nextCheckpoint.type) === 'finish' && ' 🏁'}
                 </span>
+                {currentCheckpointId === nextCheckpoint.id && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                    YOUR STATION
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-400 mt-1.5">
                 <span>Total Distance: <strong className="text-slate-200">{formatDistance(nextCheckpoint.distanceMeters, race.displayUnit)}</strong></span>
@@ -299,18 +310,18 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
               </div>
             </div>
 
-            {/* ETA Prediction Output */}
+            {/* ETA Prediction Output (Arrival Clock Time + Expected Window) */}
             <div className="text-left sm:text-right">
               {liveProgress.hasEnoughDataForEta && nextPrediction ? (
                 <div>
                   <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
-                    Estimated Arrival:
+                    Estimated Arrival
                   </div>
                   <div className="text-xl sm:text-2xl font-black font-mono text-cyan-300 mt-0.5">
-                    ~{nextPrediction.estimatedRaceElapsedFormatted}
+                    {nextPrediction.expectedWallClockTimeFormatted}
                   </div>
-                  <div className="text-xs font-mono text-slate-300 mt-0.5">
-                    Expected Window: <strong className="text-amber-300 font-bold">{nextPrediction.expectedWindowFormatted || `~${nextPrediction.expectedWallClockTimeFormatted}`}</strong>
+                  <div className="text-xs font-mono text-slate-300 mt-1">
+                    Expected Window: <strong className="text-amber-300 font-bold">{nextPrediction.expectedWindowFormatted}</strong>
                   </div>
                 </div>
               ) : (
@@ -330,7 +341,9 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
           {liveProgress.hasEnoughDataForEta && nextPrediction && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 border-t border-cyan-500/20 text-xs font-mono">
               <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
-                <span className="text-[10px] text-slate-400 uppercase block">Est. Segment Time</span>
+                <span className="text-[10px] text-slate-400 uppercase block">
+                  {normalizeCheckpointType(nextCheckpoint.type) === 'finish' ? 'Est. Time to Finish' : 'Est. Time to Checkpoint'}
+                </span>
                 <span className="font-bold text-sm sm:text-base text-slate-100 block mt-0.5">
                   ~{nextPrediction.estimatedSegmentTimeFormatted}
                 </span>
@@ -338,15 +351,15 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
               </div>
 
               <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
-                <span className="text-[10px] text-slate-400 uppercase block">Expected Clock Time</span>
-                <span className="font-bold text-sm sm:text-base text-cyan-300 block mt-0.5">
-                  ~{nextPrediction.expectedWallClockTimeFormatted}
+                <span className="text-[10px] text-slate-400 uppercase block">Expected Window</span>
+                <span className="font-bold text-xs sm:text-sm text-cyan-300 block mt-0.5">
+                  {nextPrediction.expectedWindowFormatted}
                 </span>
-                <span className="text-[10px] text-slate-500 block">Authoritative wall-clock</span>
+                <span className="text-[10px] text-slate-500 block">±5% arrival range</span>
               </div>
 
               <div className="col-span-2 sm:col-span-1 p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
-                <span className="text-[10px] text-slate-400 uppercase block">Based on Pace</span>
+                <span className="text-[10px] text-slate-400 uppercase block">Based on Latest Pace</span>
                 <span className="font-bold text-sm sm:text-base text-amber-300 block mt-0.5">
                   {nextPrediction.basedOnPaceFormatted}
                 </span>
@@ -382,101 +395,23 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
             </p>
           </div>
           <span className="text-xs font-mono text-slate-400">
-            {stats.recordedCheckpointsCount} of {stats.totalCheckpointsCount} Checkpoints Passed
+            {stats.recordedCheckpointsCount} of {stats.totalCheckpointsCount} Points Completed
           </span>
         </div>
 
         {/* Visual Progression Course */}
         <div className="space-y-0 relative py-2">
           
-          {/* START LINE Node */}
-          {(() => {
-            const isStartPassed = Boolean(race.startTimestamp || (lastRecorded && lastRecordedIndex >= 0));
-            const isStartCurrent = isRunning && (!lastRecorded || lastRecordedIndex === 0 && lastRecorded.cumulativeDistanceMeters === 0);
-            const isNext = !isRunning && !isFinished;
-
-            return (
-              <div className="relative">
-                {/* Node Row */}
-                <div className={`p-3 sm:p-3.5 rounded-xl border transition-all ${
-                  isStartCurrent
-                    ? 'bg-cyan-950/30 border-cyan-500/60 shadow-lg shadow-cyan-500/10'
-                    : isStartPassed
-                    ? 'bg-slate-950/70 border-slate-800/90'
-                    : 'bg-slate-950/40 border-slate-800/50'
-                }`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      {/* Visual Track Indicator */}
-                      <div className="shrink-0">
-                        {isStartCurrent ? (
-                          <div className="w-7 h-7 rounded-full bg-cyan-400 text-slate-950 font-black text-xs flex items-center justify-center shadow-md shadow-cyan-400/30">
-                            ●
-                          </div>
-                        ) : isStartPassed ? (
-                          <div className="w-7 h-7 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/50 flex items-center justify-center font-bold text-xs">
-                            ✓
-                          </div>
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-slate-900 text-slate-500 border border-slate-800 flex items-center justify-center font-bold text-xs">
-                            ○
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-slate-100 text-xs sm:text-sm">
-                            START LINE
-                          </span>
-                          
-                          {isStartCurrent && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-black bg-cyan-400 text-slate-950 animate-pulse">
-                              ● CURRENT POSITION
-                            </span>
-                          )}
-
-                          {!isRunning && !isFinished && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-950 text-amber-300 border border-amber-500/30">
-                              AWAITING START
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="text-[11px] font-mono text-slate-400 mt-0.5">
-                          Distance: <strong className="text-slate-300">0 m</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-left sm:text-right pl-10 sm:pl-0 font-mono text-xs">
-                      {isStartPassed ? (
-                        <div>
-                          <div className="font-bold text-emerald-400">00:00.000</div>
-                          <span className="text-[10px] text-slate-500">Race Start</span>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-slate-500 font-mono">—</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Vertical Track Connector */}
-                <div className="w-7 flex justify-center py-1.5">
-                  <div className={`w-0.5 h-6 ${isStartPassed ? 'bg-emerald-500/60' : 'bg-slate-800'}`} />
-                </div>
-              </div>
-            );
-          })()}
-
           {/* Dynamically Rendered Checkpoints from Race Configuration */}
           {stats.processedCheckpoints.map((row, idx) => {
             const isLast = idx === stats.processedCheckpoints.length - 1;
-            const hasEvent = row.status === 'RECORDED' && Boolean(row.event);
-            const isCurrentPos = lastRecorded?.checkpoint.id === row.checkpoint.id && isRunning;
-            const isNext = nextCheckpoint?.id === row.checkpoint.id && isRunning;
+            const isStart = normalizeCheckpointType(row.checkpoint.type) === 'start' || row.checkpoint.distanceMeters === 0;
             const isFinal = normalizeCheckpointType(row.checkpoint.type) === 'finish' || isLast;
+            const hasEvent = row.status === 'RECORDED' && Boolean(row.event);
+            const isStartPassed = isStart && (hasEvent || isRunning || isFinished);
+            const isStartCurrent = isStart && isRunning && (!lastRecorded || (lastRecordedIndex === 0 && lastRecorded.cumulativeDistanceMeters === 0));
+            const isCurrentPos = isStart ? isStartCurrent : (lastRecorded?.checkpoint.id === row.checkpoint.id && isRunning);
+            const isNext = nextCheckpoint?.id === row.checkpoint.id && isRunning;
             const isThisStaffScreen = currentCheckpointId === row.checkpoint.id;
 
             return (
@@ -488,7 +423,7 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
                     ? 'bg-cyan-950/30 border-cyan-500/60 shadow-lg shadow-cyan-500/10'
                     : isNext
                     ? 'bg-slate-900 border-cyan-500/30'
-                    : hasEvent
+                    : (hasEvent || isStartPassed)
                     ? 'bg-slate-950/70 border-slate-800/90'
                     : row.status === 'MISSED'
                     ? 'bg-amber-950/20 border-amber-500/40'
@@ -505,7 +440,7 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
                           <div className="w-7 h-7 rounded-full bg-cyan-400 text-slate-950 font-black text-xs flex items-center justify-center shadow-md shadow-cyan-400/30">
                             ●
                           </div>
-                        ) : hasEvent ? (
+                        ) : (hasEvent || isStartPassed) ? (
                           <div className="w-7 h-7 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/50 flex items-center justify-center font-bold text-xs">
                             ✓
                           </div>
@@ -542,9 +477,15 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
                             </span>
                           )}
 
+                          {isStart && !isRunning && !isFinished && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-950 text-amber-300 border border-amber-500/30">
+                              AWAITING START
+                            </span>
+                          )}
+
                           {isNext && !isCurrentPos && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">
-                              ○ NEXT CHECKPOINT
+                              {isFinal ? '○ NEXT EVENT: FINISH LINE' : '○ NEXT CHECKPOINT'}
                             </span>
                           )}
 
@@ -556,7 +497,11 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
                         </div>
 
                         <div className="text-[11px] font-mono text-slate-400 flex flex-wrap items-center gap-2 mt-0.5">
-                          <span>Distance: <strong className="text-slate-300">{formatDistance(row.checkpoint.distanceMeters, race.displayUnit)}</strong></span>
+                          <span>
+                            Distance: <strong className="text-slate-300">
+                              {isStart ? '0 m' : formatDistance(row.checkpoint.distanceMeters, race.displayUnit)}
+                            </strong>
+                          </span>
                           {row.event?.staffName && (
                             <>
                               <span>•</span>
@@ -569,7 +514,16 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
 
                     {/* Right: Metrics & Split Status */}
                     <div className="text-left sm:text-right pl-10 sm:pl-0 font-mono text-xs">
-                      {hasEvent ? (
+                      {isStart ? (
+                        isStartPassed ? (
+                          <div>
+                            <div className="font-bold text-sm sm:text-base text-emerald-400">00:00.000</div>
+                            <span className="text-[10px] text-slate-500">Race Start</span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-500 font-mono">—</span>
+                        )
+                      ) : hasEvent ? (
                         <div>
                           <div className="font-bold text-sm sm:text-base text-cyan-300">
                             {row.cumulativeElapsedFormatted}
@@ -594,10 +548,10 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
                       ) : isNext && nextPrediction ? (
                         <div>
                           <div className="text-cyan-300 font-bold text-xs">
-                            Est: ~{nextPrediction.expectedWallClockTimeFormatted}
+                            Est: {nextPrediction.expectedWallClockTimeFormatted}
                           </div>
                           <span className="text-[10px] text-slate-400">
-                            ~{nextPrediction.estimatedRaceElapsedFormatted} elapsed
+                            ~in {nextPrediction.estimatedSegmentTimeFormatted}
                           </span>
                         </div>
                       ) : (
@@ -613,7 +567,7 @@ export const LiveRaceProgressTimeline: React.FC<LiveRaceProgressTimelineProps> =
                 {/* Vertical Track Connector (if not final checkpoint) */}
                 {!isLast && (
                   <div className="w-7 flex justify-center py-1.5">
-                    <div className={`w-0.5 h-6 ${hasEvent ? 'bg-emerald-500/60' : 'bg-slate-800'}`} />
+                    <div className={`w-0.5 h-6 ${(hasEvent || isStartPassed) ? 'bg-emerald-500/60' : 'bg-slate-800'}`} />
                   </div>
                 )}
 
